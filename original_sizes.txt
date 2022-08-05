@@ -1,0 +1,114 @@
+4626125	Adobe Photoshop 2022.app/
+6401679	Adobe Premiere Pro 2022.app/
+2450190	Adobe Illustrator.app/
+5257689	Adobe Media Encoder 2022.app/
+3908474	Asphalt9.app/
+3638334	Asphalt8.app/
+2612510	CLion.app/
+2176842	Microsoft Word.app/
+1907441	Microsoft Excel.app/
+1868480	Android Studio Preview.app/
+1662952	Microsoft PowerPoint.app/
+1049349	Microsoft OneNote.app/
+916644	Wine Stable.app/
+896461	Google Chrome.app/
+647293	Parallels Desktop.app/
+585032	Cutter.app/
+550480	Adobe XD.app/
+510101	Utilities/
+494128	Pages.app/
+481684	Visual Studio Code.app/
+441350	Numbers.app/
+428749	Keynote.app/
+401469	Element.app/
+397423	Opera.app/
+383429	IDA Pro 7.0 Mac (Portable)/
+352727	Discord.app/
+343237	Descript.app/
+331678	iMazing.app/
+331626	VN.app/
+289295	Deco.app/
+287512	WhatsApp.app/
+280604	WhatsApp.localized/
+259754	OneDrive.app/
+251616	Microsoft Remote Desktop.app/
+198688	Cyberduck.app/
+197650	Elmedia Player.app/
+190110	Tor Browser.app/
+186035	CMake.app/
+147076	Parallels Toolbox.app/
+146389	CleanMyMac X.app/
+137124	IOLab.app/
+134130	zoom.us.app/
+127857	TeamViewer.app/
+111505	Sideloadly.app/
+110942	Cloudflare WARP.app/
+107904	Telegram.app/
+106177	Free Download Manager.app/
+96071	HMA VPN.app/
+87271	QtScrcpy.app/
+86958	Hopper Disassembler v4.app/
+83984	Private Internet Access.app/
+79347	Grammarly for Safari.app/
+70581	Daily Mandarin.app/
+69286	iTerm.app/
+64682	Baotu.app/
+59511	qbittorrent.app/
+58639	blobsaver.app/
+50181	AdBlock Max.app/
+45348	AdBlock.app/
+44883	Speedtest.app/
+41756	Tunnelblick.app/
+25788	Transparent Note.app/
+22710	Shazam.app/
+19906	LuLu.app/
+14493	touchbar_nyancat.app/
+13750	Safari.app/
+12138	AltServer.app/
+8815	VNC Viewer.app/
+8412	checkra1n.app/
+7801	Hex Fiend.app/
+6183	PlayCover.app/
+5959	Minecraft.app/
+5712	Color Picker.app/
+2924	Userscripts.app/
+1485	WhatsYourSign.app/
+442	MacPorts/
+268	ProcessMonitor.app/
+172883	Utilities/
+126547	Books.app/
+100547	Music.app/
+78351	Maps.app/
+72309	TV.app/
+61461	Photos.app/
+44156	Podcasts.app/
+36982	Notes.app/
+35351	FindMy.app/
+26881	Mail.app/
+25283	App Store.app/
+16869	Reminders.app/
+15397	Calendar.app/
+15078	FaceTime.app/
+14464	Dictionary.app/
+14429	Contacts.app/
+10562	News.app/
+10557	Preview.app/
+7142	QuickTime Player.app/
+7107	Chess.app/
+6842	Font Book.app/
+5563	Messages.app/
+5505	Calculator.app/
+5363	VoiceMemos.app/
+5147	Automator.app/
+4452	Photo Booth.app/
+4052	Stocks.app/
+4020	Home.app/
+3592	Shortcuts.app/
+3159	Image Capture.app/
+2758	System Preferences.app/
+2576	TextEdit.app/
+2427	Siri.app/
+1818	Stickies.app/
+1194	Time Machine.app/
+719	Launchpad.app/
+322	Mission Control.app/

@@ -1,0 +1,79 @@
+1872141	Microsoft Word.app/
+1753830	Android Studio Preview.app/
+1582836	Microsoft Excel.app/
+1370457	Microsoft PowerPoint.app/
+853251	Microsoft OneNote.app/
+859417	Wine Stable.app/
+584405	Cutter.app/
+527541	Google Chrome.app/
+498918	Parallels Desktop.app/
+428232	Keynote.app/
+360049	Pages.app/
+327663	iMazing.app/
+324490	Descript.app/
+316100	Visual Studio Code.app/
+315864	Numbers.app/
+281267	WhatsApp.app/
+276905	VN.app/
+236719	Element.app/
+195971	Cyberduck.app/
+195933	Discord.app/
+119218	Parallels Toolbox.app/
+115747	Elmedia Player.app/
+115646	Microsoft Remote Desktop.app/
+112228	CMake.app/
+110484	TeamViewer.app/
+107565	Telegram.app/
+74355	Books.app/
+68468	Music.app/
+67710	Cloudflare WARP.app/
+76831	Grammarly for Safari.app/
+63386	HMA VPN.app/
+57089	Hopper Disassembler v4.app/
+55208	Maps.app/
+54334	TV.app/
+42668	iTerm.app/
+42578	Photos.app/
+36778	Speedtest.app/
+32163	qbittorrent.app/
+28785	Tunnelblick.app/
+28578	FindMy.app/
+26848	Notes.app/
+26374	Podcasts.app/
+23513	Transparent Note.app/
+21123	Mail.app/
+19614	App Store.app/
+14283	LuLu.app/
+14034	Dictionary.app/
+12931	Contacts.app/
+12716	Safari.app/
+11504	Calendar.app/
+10765	Reminders.app/
+10693	FaceTime.app/
+7800	Preview.app/
+6148	AltServer.app/
+5774	News.app/
+6531	Chess.app/
+5679	Font Book.app/
+5371	QuickTime Player.app/
+5165	Hex Fiend.app/
+4864	Calculator.app/
+4634	Automator.app/
+3847	Messages.app/
+3639	VoiceMemos.app/
+3639	Photo Booth.app/
+3499	Color Picker.app/
+3094	Home.app/
+3031	Image Capture.app/
+2869	Stocks.app/
+2441	Userscripts.app/
+2332	TextEdit.app/
+2315	Siri.app/
+2313	Shortcuts.app/
+2035	System Preferences.app/
+1481	Stickies.app/
+1081	Time Machine.app/
+4000817	Adobe Premiere Pro 2022.app/
+3517253	Adobe Photoshop 2022.app/
+3051461	Adobe Media Encoder 2022.app/
+1555993	Adobe Illustrator.app/

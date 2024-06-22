@@ -34,33 +34,43 @@ Alternatively, you can permanently allow the app using the System Preferences:
 3. Confirm by clicking "Open" in the subsequent dialog.
 
 ## App Usage
-<img src="https://i.imgur.com/wlDoljp.png" width="95%" alt="archify">
+<img src="https://i.imgur.com/xGS3Oid.png" width="95%" alt="archify">
 
 The new GUI for Archify provides an interface for managing the applications. The GUI includes features such as:
 
 1. **App Selection**: Select the input app and output directory for the app you want to process.
 2. **Architecture**: By default, the machine architecture. Can optionally select a target architecture from the list.
-3. **Signing**: Toggle between signing options (`ldid` and `codesign`) and specify whether to include entitlements. A new option `App launch` is added and attempts to cache signature to avoid the need for external signing 
-5. **Progress and Logging**: View the progress of the processing and detailed logs in real-time.
-6. **Size Calculation**: Calculate how much space is being used up by unnecessary binaries in each app
+3. **Signing**: Toggle between signing options (`ldid` and `codesign`) and specify whether to include entitlements. A new option `App launch` is added and attempts to cache signature to avoid the need for external signing.
+4. **Progress and Logging**: View the progress of the processing and detailed logs in real-time.
+5. **Size Calculation**: Calculate how much space is being used up by unnecessary binaries in each app.
+6. **Language Cleaner**: Scan the `/Applications` directory to find and remove unnecessary language files from apps
+7. **Batch Processing**: Scan and process all apps in the `/Applications` directory in one go
 
 ### Note
 - The default options should work the best. It is recommended to only use `App launch (cache)` first.
-- If it does not suffice, feel free to experiment with the other signing options
+- If it does not suffice, feel free to experiment with the other signing options.
 - Using `codesign` or `ldid` without entitlements usually work, but sometimes injecting entitlements is required.
-  - This option may cause issues with the app accessing keychain due to the app having no identity
-- After you have ensured the output app is functional, you can replace it with the original one
+  - This option may cause issues with the app accessing keychain due to the app having no identity.
+- After you have ensured the output app is functional, you can replace it with the original one.
 
+## Helper Tool
+
+Archify now includes a helper tool for privileged operations such as removing files and modifying app binaries. This helper makes sure that the necessary permissions are granted to perform these operations safely and effectively.
+
+The helper tool is used for tasks such as:
+- Removing the languages files.
+- Extracting and signing binaries.
+- Setting file permissions.
 
 ## Why Launch the App?
 
 When an app is launched for the first time, macOS performs various checks and initializations. By launching the app before modifying it, you allow macOS to:
 
-1. **Cache**: macOS validates the app's code signature and other integrity checks, and may cache this validation. This means later launches rely more on this cached state rather than revalidating the entire app.
+1. **Cache**: macOS validates the app's code signature and other integrity checks and may cache this validation. This means later launches rely more on this cached state rather than revalidating the entire app.
 2. **Initial State**: The app sets up necessary initial states, caches, and configuration files that do not need revalidation.
 3. **Integrity Checks**: After the initial launch, some integrity checks can be bypassed to make it easier for the app to run even if its contents are later modified.
 
-By launching the app before modifying it, it means the necessary initial validations are done, which helps the app run even after modifications. This technique is  useful when modifying apps to change their architecture or remove unnecessary components.
+By launching the app before modifying it, the necessary initial validations are done, which helps the app run even after modifications. This technique is useful when modifying apps to change their architecture or remove unnecessary components.
 
 ## Python Script Usage
 
@@ -84,7 +94,7 @@ python3 archify.py [-h] -app APP_DIR [APP_DIR ...] [-o OUTPUT_DIR] [-arch ARCH]
 #### Options
 
 - `-app, --app_dir`: Support one or more apps.
-- `-arch, --arch`: Specify the target architecture. Use `arm64` for Apple Silicon devices. Intel 32-bit should be `i386` and 64-bit `x86_64` for Intel Macs. Default is set by system.
+- `-arch, --arch`: Specify the target architecture. Use `arm64` for Apple Silicon devices. Intel 32-bit should be `i386` and 64-bit `x86_64` for Intel Macs. Default is set by the system.
 - `-ld, --ldid`: The path to `ldid` binary (if signing with `ldid` is needed).
 - `-Ns, --no_sign`: Do not sign the binaries with `ldid`.
 - `-Ne, --no_entitlements`: Do not sign the binaries with original entitlements with `ldid`.
@@ -103,7 +113,7 @@ python3 archify.py -app /Applications/Adobe\ Illustrator\ 2022/Adobe\ Illustrato
 python3 archify.py -app /Applications/Microsoft\ Excel.app /Applications/Microsoft\ OneNote.app -o /Users/oct4pie/apps/ptest -arch x86_64
 ```
 
-- The `-arch` by default is the system architechture
+- The `-arch` by default is the system architecture.
 
 ## Why?
 
@@ -112,6 +122,27 @@ I was tired of downloading bloated universal apps, and managing the space became
 ## Note
 
 The apps I have generated so far work without any issues. If the app crashes, try using `ldid`, `codesign` (with/without entitlements) flags for signing. `-Ns` should work most of the time because of fake-signing. This project is published for educational purposes. Although the script does not alter the original apps, use it with caution. I am not responsible for any harm done.
+
+## Changelog
+
+### Version 1.2.0
+
+- Language (.lproj) Cleaner to scan `/Applications` and remove unnecessary language files.
+- Batch processing to scan and process all universal apps in the `/Applications` directory
+- Added helper tool for privileged operations to remove files, extract and sign binaries, and set file permissions.
+
+### Version 1.1.0
+
+- GUI: single app processing, multiple architecture size calculations, signing & entitlement options
+- Python script: multiple architecture size calculations, ad-hoc sign, entitlement options
+
+### Version 1.0.0
+
+- Initial release of Archify as a python script with single app processing, architecture size calculations, ldid signing
+
+## To-Do
+- Persist app states throughout navigation
+- Account apps linked into `/Applications` from the `/System` volumes
 
 ## License
 

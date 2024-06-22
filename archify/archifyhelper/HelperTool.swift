@@ -1,0 +1,69 @@
+//
+//  HelperTool.swift
+//  archifyhelper
+//
+//  Created by oct4pie on 6/19/24.
+//
+
+import Foundation
+
+class HelperTool: NSObject, NSXPCListenerDelegate, HelperToolProtocol {
+    func duplicateApp(appDir: String, outputDir: String, withReply reply: @escaping (String?, String?) -> Void) {
+        
+    }
+    
+    private let listener: NSXPCListener
+
+    override init() {
+        self.listener = NSXPCListener(machServiceName: "com.oct4pie.archifyhelper")
+        super.init()
+        self.listener.delegate = self
+    }
+
+    func run() {
+        NSLog("Helper tool started.")
+        self.listener.resume()
+        RunLoop.current.run()
+    }
+
+    func listener(_ listener: NSXPCListener, shouldAcceptNewConnection newConnection: NSXPCConnection) -> Bool {
+        NSLog("New connection accepted.")
+        newConnection.exportedInterface = NSXPCInterface(with: HelperToolProtocol.self)
+        newConnection.exportedObject = self
+        newConnection.resume()
+        return true
+    }
+
+    func removeFile(atPath path: String, withReply reply: @escaping (Bool, String?) -> Void) {
+        NSLog("Received request to remove file at path: \(path)")
+        do {
+            try FileManager.default.removeItem(atPath: path)
+            reply(true, nil)
+            NSLog("File removed successfully.")
+        } catch {
+            reply(false, error.localizedDescription)
+            NSLog("Failed to remove file: \(error.localizedDescription)")
+        }
+    }
+
+    func extractAndSignBinaries(in dir: String, targetArch: String, noSign: Bool, noEntitlements: Bool, appStateDict: [String: Any], withReply reply: @escaping (Bool, String?) -> Void) {
+        NSLog("Received request to extract and sign binaries in directory \(dir)")
+        let appState = AppState.fromDictionary(appStateDict)
+        let fileOperations = FileOperations(appState: appState)
+        fileOperations.extractAndSignBinaries(in: dir, targetArch: targetArch, noSign: noSign, noEntitlements: noEntitlements)
+        reply(true, nil)
+    }
+
+
+    func setFilePermissions(atPath path: String, permissions: Int, withReply reply: @escaping (Bool, String?) -> Void) {
+        NSLog("Received request to set file permissions at path: \(path)")
+        do {
+            try FileManager.default.setAttributes([.posixPermissions: permissions], ofItemAtPath: path)
+            reply(true, nil)
+            NSLog("File permissions set successfully.")
+        } catch {
+            reply(false, error.localizedDescription)
+            NSLog("Failed to set file permissions: \(error.localizedDescription)")
+        }
+    }
+}

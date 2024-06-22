@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>com.oct4pie.archify</string>
+	<key>CFBundleName</key>
+	<string>Archify</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>NSMainNibFile</key>
+	<string>MainMenu</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>SMPrivilegedExecutables</key>
+	<dict>
+		<key>com.oct4pie.archifyhelper</key>
+		<string>identifier &quot;com.oct4pie.archifyhelper&quot; and certificate root = H&quot;774f76d43737aa8e4665811ff668e961a39fc7a0&quot;</string>
+	</dict>
+</dict>
+</plist>

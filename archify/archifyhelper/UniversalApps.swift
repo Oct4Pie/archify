@@ -2,7 +2,7 @@
 //  UniversalApps.swift
 //  archify
 //
-//  Created by oct4pie on 6/12/24.
+//  Created by oct4pie on 6/20/24.
 //
 
 import Foundation
@@ -61,9 +61,6 @@ class UniversalApps {
                 defaultApps.formUnion(apps)
             }
         }
-        
-        defaultApps.insert("Xcode.app")
-        defaultApps.insert("Safari.app")
 
         return defaultApps
     }

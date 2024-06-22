@@ -240,19 +240,6 @@ struct SizeCalculationView: View {
     }
 }
 
-extension ProcessInfo {
-    var machineArchitecture: String {
-        var systemInfo = utsname()
-        uname(&systemInfo)
-        let machineMirror = Mirror(reflecting: systemInfo.machine)
-        let identifier = machineMirror.children.reduce("") { identifier, element in
-            guard let value = element.value as? Int8, value != 0 else { return identifier }
-            return identifier + String(UnicodeScalar(UInt8(value)))
-        }
-        return identifier
-    }
-}
-
 struct SizeCalculationView_Previews: PreviewProvider {
     static var previews: some View {
         SizeCalculationView()

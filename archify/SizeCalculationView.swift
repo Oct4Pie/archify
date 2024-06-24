@@ -8,18 +8,7 @@
 import SwiftUI
 
 struct SizeCalculationView: View {
-    @State private var selectedAppPaths: [String] = []
-    @State private var unneededArchSizes: [(String, UInt64)] = []
-    @State private var showCalculationResult = false
-    @State private var progress: Double = 0.0
-    @State private var isCalculating = false
-    @State private var currentApp: String = ""
-    @State private var maxConcurrentProcesses: Int = 4
-    let systemArch: String
-
-    init() {
-        systemArch = ProcessInfo.processInfo.machineArchitecture
-    }
+    @EnvironmentObject var sizeCalculation: SizeCalculation
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -33,7 +22,7 @@ struct SizeCalculationView: View {
                 .font(.title3)
                 .padding(.leading, 20)
 
-            Text("Your architecture is \(systemArch)")
+            Text("Your architecture is \(sizeCalculation.systemArch)")
                 .font(.callout)
                 .padding(.leading, 20)
 
@@ -45,10 +34,10 @@ struct SizeCalculationView: View {
                             .padding(.leading, 20)
 
                         Button(action: {
-                            if let urls = openPanel(
+                            if let urls = sizeCalculation.openPanel(
                                 canChooseFiles: true, canChooseDirectories: true, allowsMultipleSelection: true)
                             {
-                                selectedAppPaths = urls.map { $0.path }
+                                sizeCalculation.selectedAppPaths = urls.map { $0.path }
                             }
                         }) {
                             HStack {
@@ -65,15 +54,15 @@ struct SizeCalculationView: View {
                             .padding(.vertical, -1)
                         }
                         .padding(.horizontal, 25)
-                        .disabled(isCalculating) // Disable button when calculating
+                        .disabled(sizeCalculation.isCalculating) // Disable button when calculating
                     }
 
-                    if !selectedAppPaths.isEmpty {
+                    if !sizeCalculation.selectedAppPaths.isEmpty {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("Selected Applications:")
                                 .font(.headline)
                                 .padding(.leading, 20)
-                            List(selectedAppPaths, id: \.self) { path in
+                            List(sizeCalculation.selectedAppPaths, id: \.self) { path in
                                 Text(path)
                                     .lineLimit(1)
                                     .truncationMode(.middle)
@@ -97,17 +86,17 @@ struct SizeCalculationView: View {
                             .padding(.leading, 20)
 
                         Slider(value: Binding(
-                            get: { Double(self.maxConcurrentProcesses) },
-                            set: { self.maxConcurrentProcesses = Int($0) }
+                            get: { Double(self.sizeCalculation.maxConcurrentProcesses) },
+                            set: { self.sizeCalculation.maxConcurrentProcesses = Int($0) }
                         ), in: 1...16, step: 1)
                         .padding(.horizontal, 20)
 
-                        Text("Threads: \(maxConcurrentProcesses)")
+                        Text("Threads: \(sizeCalculation.maxConcurrentProcesses)")
                             .padding(.leading, 20)
                     }
 
                     Button(action: {
-                        calculateUnneededArchSizes()
+                        sizeCalculation.calculateUnneededArchSizes()
                     }) {
                         HStack {
                             Image(systemName: "chart.bar.xaxis")
@@ -124,30 +113,30 @@ struct SizeCalculationView: View {
                     }
                     .padding(.horizontal, 25)
                     .padding(.vertical, 25)
-                    .disabled(isCalculating) // Disable button when calculating
+                    .disabled(sizeCalculation.isCalculating) // Disable button when calculating
 
-                    if isCalculating {
+                    if sizeCalculation.isCalculating {
                         VStack {
-                            ProgressView(value: progress, total: 1.0)
+                            ProgressView(value: sizeCalculation.progress, total: 1.0)
                                 .padding(.horizontal, 20)
-                            Text("Processing \(self.currentApp)")
+                            Text("Processing \(sizeCalculation.currentApp)")
                                 .foregroundColor(.secondary)
                                 .padding(.top, 5)
                                 .padding(.bottom, 20)
                         }
                     }
 
-                    if showCalculationResult {
+                    if sizeCalculation.showCalculationResult {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("Results:")
                                 .font(.headline)
                                 .padding(.leading, 20)
                                 .padding(.top, -10)
-                            List(unneededArchSizes, id: \.0) { app in
+                            List(sizeCalculation.unneededArchSizes, id: \.0) { app in
                                 HStack {
                                     Text(app.0)
                                     Spacer()
-                                    Text(app.1.humanReadableSize())
+                                    Text(sizeCalculation.humanReadableSize(app.1))
                                         .foregroundColor(.secondary)
                                 }
                             }
@@ -162,81 +151,6 @@ struct SizeCalculationView: View {
         }
         .background(Color(NSColor.windowBackgroundColor))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    func openPanel(canChooseFiles: Bool, canChooseDirectories: Bool, allowsMultipleSelection: Bool)
-        -> [URL]?
-    {
-        let dialog = NSOpenPanel()
-        dialog.title = "Choose directories"
-        dialog.canChooseDirectories = canChooseDirectories
-        dialog.canChooseFiles = canChooseFiles
-        dialog.allowsMultipleSelection = allowsMultipleSelection
-
-        if dialog.runModal() == .OK {
-            return dialog.urls
-        }
-        return nil
-    }
-
-    func calculateUnneededArchSizes() {
-        isCalculating = true
-        progress = 0.0
-        unneededArchSizes = []
-        let totalFiles = selectedAppPaths.count
-        var processedFiles = 0
-        let processedFilesQueue = DispatchQueue(label: "com.universalApps.processedFilesQueue")
-        let resultsQueue = DispatchQueue(label: "com.universalApps.resultsQueue", attributes: .concurrent)
-        let semaphore = DispatchSemaphore(value: maxConcurrentProcesses)
-
-        let dispatchGroup = DispatchGroup()
-        let dispatchQueue = DispatchQueue.global(qos: .userInitiated)
-        let finder = UniversalApps()
-
-        for appPath in selectedAppPaths {
-            dispatchGroup.enter()
-            semaphore.wait()
-            dispatchQueue.async {
-                defer {
-                    semaphore.signal()
-                    dispatchGroup.leave()
-                }
-
-                let totalFilesInApp = finder.countFilesInApp(appPath: appPath)
-                var processedFilesInApp = 0
-
-                let size = finder.calculateUnneededArchSize(appPath: appPath, systemArch: systemArch, progressHandler: { _ in
-                    processedFilesQueue.sync {
-                        processedFilesInApp += 1
-                        let progressValue = (Double(processedFiles) + (Double(processedFilesInApp) / Double(totalFilesInApp))) / Double(totalFiles)
-                        DispatchQueue.main.async {
-                            if processedFilesInApp % 100 == 0 {
-                                self.progress = min(progressValue, 1.0)
-                                self.currentApp = (appPath as NSString).lastPathComponent
-                            }
-                        }
-                    }
-                }, maxConcurrentProcesses: maxConcurrentProcesses)
-
-                resultsQueue.sync(flags: .barrier) {
-                    self.unneededArchSizes.append((appPath, size))
-                }
-
-                processedFilesQueue.sync(flags: .barrier) {
-                    processedFiles += 1
-                    let progressValue = Double(processedFiles) / Double(totalFiles)
-                    DispatchQueue.main.async {
-                        self.progress = min(progressValue, 1.0)
-                    }
-                }
-            }
-        }
-
-        dispatchGroup.notify(queue: .main) {
-            self.isCalculating = false
-            self.showCalculationResult = true
-            self.unneededArchSizes.sort { $0.1 > $1.1 }
-        }
     }
 }
 

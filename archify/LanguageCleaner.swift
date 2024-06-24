@@ -2,7 +2,7 @@
 //  LanguageCleaner.swift
 //  archify
 //
-//  Created by oct4pie on 6/20/24.
+//  Created by oct4pie on 6/24/24.
 //
 
 import Foundation
@@ -26,6 +26,9 @@ class LanguageCleaner: ObservableObject {
     @Published var isRemoving: Bool = false
     @Published var progress: Double = 0.0
     @Published var searchText: String = ""
+    @Published var removedFilesLog: String = ""
+    @Published var currentlyScanningApp: String = ""
+    @Published var currentlyRemovingFile: String = ""
 
     var filteredApps: [AppLanguage] {
         if searchText.isEmpty {
@@ -80,6 +83,7 @@ class LanguageCleaner: ObservableObject {
         progress = 0.0
         let fileManager = FileManager.default
         let applicationPath = "/Applications"
+        let defaultMacOSApps = UniversalApps.shared.fetchDefaultMacOSApps()
         var tempApps: [AppLanguage] = []
         var allLanguages: Set<String> = []
         var appLanguages: [String: [String: [String]]] = [:] // Maps app names to a dictionary of language names and their paths
@@ -95,6 +99,12 @@ class LanguageCleaner: ObservableObject {
                     if fileManager.fileExists(atPath: fullPath, isDirectory: &isDir), isDir.boolValue {
                         processedCount += 1
                         let appName = item
+                        if defaultMacOSApps.contains(appName) {
+                            continue
+                        }
+                        DispatchQueue.main.async {
+                            self.currentlyScanningApp = "Scanning \(appName)"
+                        }
                         if appLanguages[appName] == nil {
                             appLanguages[appName] = [:]
                         }
@@ -129,12 +139,14 @@ class LanguageCleaner: ObservableObject {
                 self.expandedApps = Dictionary(uniqueKeysWithValues: tempApps.map { ($0.id, false) })
                 self.isScanning = false
                 self.progress = 1.0
+                self.currentlyScanningApp = ""
             }
         }
     }
 
     func removeSelected() {
         var pathsToRemove: [(appIndex: Int, language: String, path: String)] = []
+        var removedFiles: [String] = []
 
         for (appIndex, app) in apps.enumerated() {
             for language in app.languages {
@@ -162,6 +174,9 @@ class LanguageCleaner: ObservableObject {
 
             for (appIndex, language, path) in pathsToRemove {
                 group.enter()
+                DispatchQueue.main.async {
+                    self.currentlyRemovingFile = "Removing \(path)"
+                }
                 HelperToolManager.shared.interactWithHelperTool(command: .removeFile(path: path)) { success, errorString in
                     if success {
                         DispatchQueue.main.async {
@@ -169,7 +184,9 @@ class LanguageCleaner: ObservableObject {
                             if self.apps[appIndex].languagePaths[language]?.isEmpty == true {
                                 self.apps[appIndex].languagePaths.removeValue(forKey: language)
                                 self.apps[appIndex].languages.removeAll(where: { $0 == language })
+                                self.uniqueLanguages.removeAll(where: { $0 == language })
                             }
+                            removedFiles.append(path)
                             removedCount += 1
                             self.progress = Double(removedCount) / Double(totalCount)
                         }
@@ -184,6 +201,8 @@ class LanguageCleaner: ObservableObject {
             group.notify(queue: .main) {
                 self.isRemoving = false
                 self.progress = 1.0
+                self.removedFilesLog = removedFiles.joined(separator: "\n")
+                self.currentlyRemovingFile = ""
             }
         }
     }

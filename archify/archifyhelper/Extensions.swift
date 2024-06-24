@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftUI
 
 extension FileManager {
   func isFileReadable(atPath path: String) -> Bool {
@@ -22,6 +23,12 @@ extension FileManager {
       return false
     }
   }
+}
+
+extension Color {
+    init(nsColor: NSColor) {
+        self.init(nsColor.cgColor ?? .clear)
+    }
 }
 
 extension ProcessInfo {

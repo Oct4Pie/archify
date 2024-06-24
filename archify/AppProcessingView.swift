@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct AppProcessingView: View {
-  @StateObject var appState = AppState()
+  @EnvironmentObject var appState: AppState
   @State private var showAlert = false
 
   var body: some View {

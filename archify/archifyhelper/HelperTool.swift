@@ -9,7 +9,7 @@ import Foundation
 
 class HelperTool: NSObject, NSXPCListenerDelegate, HelperToolProtocol {
     func duplicateApp(appDir: String, outputDir: String, withReply reply: @escaping (String?, String?) -> Void) {
-        
+        // Implementation for duplicateApp if needed
     }
     
     private let listener: NSXPCListener
@@ -39,10 +39,10 @@ class HelperTool: NSObject, NSXPCListenerDelegate, HelperToolProtocol {
         do {
             try FileManager.default.removeItem(atPath: path)
             reply(true, nil)
-            NSLog("File removed successfully.")
+            NSLog("File removed successfully at path: \(path)")
         } catch {
             reply(false, error.localizedDescription)
-            NSLog("Failed to remove file: \(error.localizedDescription)")
+            NSLog("Failed to remove file at path \(path): \(error.localizedDescription)")
         }
     }
 
@@ -50,20 +50,38 @@ class HelperTool: NSObject, NSXPCListenerDelegate, HelperToolProtocol {
         NSLog("Received request to extract and sign binaries in directory \(dir)")
         let appState = AppState.fromDictionary(appStateDict)
         let fileOperations = FileOperations(appState: appState)
-        fileOperations.extractAndSignBinaries(in: dir, targetArch: targetArch, noSign: noSign, noEntitlements: noEntitlements)
-        reply(true, nil)
+        fileOperations.extractAndSignBinaries(in: dir, targetArch: targetArch, noSign: noSign, noEntitlements: noEntitlements) { success, error in
+            if success {
+                reply(true, nil)
+                NSLog("Successfully extracted and signed binaries in directory \(dir)")
+            } else {
+                reply(false, error)
+                NSLog("Failed to extract and sign binaries in directory \(dir): \(error ?? "Unknown error")")
+            }
+        }
     }
-
 
     func setFilePermissions(atPath path: String, permissions: Int, withReply reply: @escaping (Bool, String?) -> Void) {
         NSLog("Received request to set file permissions at path: \(path)")
         do {
             try FileManager.default.setAttributes([.posixPermissions: permissions], ofItemAtPath: path)
             reply(true, nil)
-            NSLog("File permissions set successfully.")
+            NSLog("File permissions set successfully at path: \(path)")
         } catch {
             reply(false, error.localizedDescription)
-            NSLog("Failed to set file permissions: \(error.localizedDescription)")
+            NSLog("Failed to set file permissions at path \(path): \(error.localizedDescription)")
         }
     }
+    
+    func checkFullDiskAccess(withReply reply: @escaping (Bool) -> Void) {
+            NSLog("Checking for full disk access.")
+            let testPath = "/Library/Application Support/com.apple.TCC/TCC.db"
+            let hasAccess = FileManager.default.isReadableFile(atPath: testPath)
+            reply(hasAccess)
+            if hasAccess {
+                NSLog("Full disk access granted.")
+            } else {
+                NSLog("Full disk access not granted.")
+            }
+        }
 }

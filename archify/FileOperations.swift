@@ -113,6 +113,29 @@ class FileOperations {
       self.appState.outputDir = (self.appState.outputDir as NSString).deletingLastPathComponent
     }
   }
+    
+    func getArchitectures(path: String) -> [String]? {
+            let process = Process()
+            process.launchPath = "/usr/bin/lipo"
+            process.arguments = ["-info", path]
+
+            let pipe = Pipe()
+            process.standardOutput = pipe
+
+            do {
+                try process.run()
+                process.waitUntilExit()
+
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                guard let output = String(data: data, encoding: .utf8) else { return nil }
+
+                let components = output.split(separator: ":").last?.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: " ")
+                return components?.map { String($0) }
+            } catch {
+                print("Failed to get architectures: \(error)")
+                return nil
+            }
+        }
 
   private func processBinary(at path: String, arch: String, noSign: Bool, noEntitlements: Bool) {
     cleanBin(bin: path, arch: arch)

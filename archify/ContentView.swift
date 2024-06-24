@@ -12,9 +12,11 @@ enum UtilityType: Hashable {
     case sizeCalculation
     case langCleaner
     case batchProcessor
+    case universalApps
 }
 
 struct ContentView: View {
+    @EnvironmentObject var appState: AppState
     @State private var selectedUtility: UtilityType? = .appProcessor
 
     var body: some View {
@@ -39,6 +41,15 @@ struct ContentView: View {
                             .font(.title3)
                             .padding(.vertical, 8)
                     }
+                    NavigationLink(
+                        destination: UniversalAppsView(),
+                        tag: UtilityType.universalApps,
+                        selection: $selectedUtility
+                    ) {
+                        Label("Universal Apps", systemImage: "app.fill")
+                            .font(.title3)
+                            .padding(.vertical, 8)
+                    }
                 }
                 
                 Section(header: Text("Advanced")) {
@@ -56,10 +67,11 @@ struct ContentView: View {
                         tag: UtilityType.batchProcessor,
                         selection: $selectedUtility
                     ) {
-                        Label("Batch Processor", systemImage: "globe")
+                        Label("Batch Processor", systemImage: "rectangle.stack.fill")
                             .font(.title3)
                             .padding(.vertical, 8)
                     }
+                    
                 }
             }
             .listStyle(SidebarListStyle())

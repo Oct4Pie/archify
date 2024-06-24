@@ -9,48 +9,76 @@ import SwiftUI
 import Combine
 
 struct LanguageCleanerView: View {
-    @StateObject private var viewModel = LanguageCleaner()
+    @EnvironmentObject var viewModel: LanguageCleaner
 
     var body: some View {
-        VStack {
-            if viewModel.isScanning {
-                scanningView
-            } else if viewModel.isRemoving {
-                removingView
-            } else {
-                HStack {
-                    VStack {
-                        selectAllButton
-                        uniqueLanguagesList
+        
+            VStack {
+                ScrollView {
+                if viewModel.isScanning {
+                    scanningView
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if viewModel.isRemoving {
+                    removingView
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    HStack {
+                        VStack {
+                            selectAllButton
+                            uniqueLanguagesList
+                                .frame(minHeight: 500)
+                        }
+                        VStack {
+                            searchBar
+                            appsList
+                                .frame(minHeight: 500)
+                        }
                     }
-                    VStack {
-                        searchBar
-                        appsList
-                    }
+                    controlButtons
                 }
-                controlButtons
+                if viewModel.removedFilesLog != "" {
+                    removedFilesLog
+                }
             }
-        }
-        .padding()
-        .frame(minWidth: 600, minHeight: 500)
+            .padding()
+            
+        }.frame(minWidth: 600, maxHeight: .infinity)
     }
 
     @ViewBuilder
     private var scanningView: some View {
         VStack {
-            ProgressView("Scanning...", value: viewModel.progress, total: 1.0)
-                .padding()
-            Text(String(format: "%.0f%%", viewModel.progress * 100))
+            Spacer()
+            VStack {
+                ProgressView("Scanning...", value: viewModel.progress, total: 1.0)
+                    .padding()
+                Text(String(format: "%.0f%%", viewModel.progress * 100))
+                Text(viewModel.currentlyScanningApp)
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+                    .padding(.top, 10)
+            }
+            Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder
     private var removingView: some View {
         VStack {
-            ProgressView("Removing...", value: viewModel.progress, total: 1.0)
-                .padding()
-            Text(String(format: "%.0f%%", viewModel.progress * 100))
+            Spacer()
+            VStack {
+                ProgressView("Removing...", value: viewModel.progress, total: 1.0)
+                    .padding()
+                Text(String(format: "%.0f%%", viewModel.progress * 100))
+                Text(viewModel.currentlyRemovingFile)
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+                    .padding(.top, 10)
+            }
+            Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder
@@ -161,4 +189,21 @@ struct LanguageCleanerView: View {
             .disabled(!viewModel.isRemoveButtonEnabled)
         }
     }
+    
+    @ViewBuilder
+    private var removedFilesLog: some View {
+        VStack(alignment: .leading) {
+            Text("Log:")
+                .font(.headline)
+            ScrollView {
+                Text(viewModel.removedFilesLog)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+            }
+            .frame(maxHeight: 250)
+            .border(Color.gray, width: 1)
+        }
+        .padding(5)
+    }
 }
+

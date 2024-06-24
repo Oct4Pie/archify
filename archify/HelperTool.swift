@@ -78,6 +78,11 @@ class HelperToolManager {
                 completion(success, errorString)
                 connection.invalidate()
             })
+        case .checkFullDiskAccess:
+            helper?.checkFullDiskAccess(withReply: { hasAccess in
+                completion(hasAccess, hasAccess ? nil : "Full Disk Access not granted.")
+                connection.invalidate()
+            })
         }
     }
     
@@ -148,17 +153,16 @@ class HelperToolManager {
             print("Failed to run AppleScript: \(error)")
         }
         
-        // Cleanup the temporary file
         try? FileManager.default.removeItem(atPath: tempFilePath)
         
         return success
     }
 }
 
-// Define the commands that can be sent to the helper tool
 enum HelperCommand {
     case removeFile(path: String)
     case duplicateApp(appDir: String, outputDir: String)
     case extractAndSignBinaries(dir: String, targetArch: String, noSign: Bool, noEntitlements: Bool, appStateDict: [String: Any])
     case setFilePermissions(path: String, permissions: Int)
+    case checkFullDiskAccess
 }

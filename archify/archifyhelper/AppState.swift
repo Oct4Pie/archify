@@ -126,8 +126,7 @@ class AppState: ObservableObject {
 
             let fileOps = FileOperations(appState: self)
             do {
-                if let duplicatedDir = try fileOps.duplicateApp(
-                    appDir: self.inputDir, outputDir: self.outputDir) {
+                if let duplicatedDir = try fileOps.duplicateApp(appDir: self.inputDir, outputDir: self.outputDir) {
                     self.appendLog("Created copy at \(duplicatedDir)")
                     let universalApps = UniversalApps()
                     self.initialAppSize = universalApps.calculateDirectorySize(path: self.inputDir)
@@ -142,7 +141,9 @@ class AppState: ObservableObject {
                                 self.requestDirectoryAccess(directory: duplicatedDir) {
                                     fileOps.extractAndSignBinaries(
                                         in: duplicatedDir, targetArch: self.selectedArch, noSign: false,
-                                        noEntitlements: !self.entitlements)
+                                        noEntitlements: !self.entitlements) { success, error in
+                                            self.handleCompletion(success: success, error: error)
+                                    }
                                 }
                             } else {
                                 self.appendLog("Failed to open the app.")
@@ -153,16 +154,29 @@ class AppState: ObservableObject {
                         self.requestDirectoryAccess(directory: duplicatedDir) {
                             fileOps.extractAndSignBinaries(
                                 in: duplicatedDir, targetArch: self.selectedArch, noSign: false,
-                                noEntitlements: !self.entitlements)
+                                noEntitlements: !self.entitlements) { success, error in
+                                    self.handleCompletion(success: success, error: error)
+                            }
                         }
                     }
                 } else {
                     self.appendLog("Failed to duplicate app.")
+                    self.isProcessing = false
                 }
             } catch {
                 self.appendLog("Failed to duplicate app: \(error.localizedDescription)")
+                self.isProcessing = false
             }
         }
+    }
+
+    private func handleCompletion(success: Bool, error: String?) {
+        if success {
+            self.appendLog("Successfully processed app.")
+        } else {
+            self.appendLog("Failed to process app: \(error ?? "Unknown error")")
+        }
+        self.isProcessing = false
     }
 
     private func requestDirectoryAccess(directory: String, completion: @escaping () -> Void) {

@@ -1,25 +1,101 @@
-//
-//  UniversalApps.swift
-//  archify
-//
-//  Created by oct4pie on 6/12/24.
-//
-
 import Foundation
+import AppKit
 
 class UniversalApps {
+    static let shared = UniversalApps()
     let fileManager = FileManager.default
     let fileOperations = FileOperations(appState: AppState())
-    
+
     func countFilesInApp(appPath: String) -> Int {
-            var count = 0
-            if let enumerator = fileManager.enumerator(atPath: appPath) {
-                for _ in enumerator {
-                    count += 1
+        var count = 0
+        if let enumerator = fileManager.enumerator(atPath: appPath) {
+            for _ in enumerator {
+                count += 1
+            }
+        }
+        return count
+    }
+    
+    
+    func findApps(completion: @escaping ([(name: String, path: String, type: String, architectures: String, icon: NSImage?)]) -> Void) {
+        DispatchQueue.global(qos: .background).async {
+            let applicationsPath = "/Applications"
+            var apps: [(name: String, path: String, type: String, architectures: String, icon: NSImage?)] = []
+
+            if let appDirs = try? self.fileManager.contentsOfDirectory(atPath: applicationsPath) {
+                for appDir in appDirs {
+                    let appPath = (applicationsPath as NSString).appendingPathComponent(appDir)
+                    if appPath.hasSuffix(".app") {
+                        let (type, architectures) = self.getAppTypeAndArchitectures(appPath: appPath)
+                        let icon = self.getAppIcon(appPath: appPath)
+                        apps.append((name: appDir, path: appPath, type: type, architectures: architectures, icon: icon))
+                    } else {
+                        if let subItems = try? self.fileManager.contentsOfDirectory(atPath: appPath), subItems.count > 1 {
+                            for subItem in subItems {
+                                let subItemPath = (appPath as NSString).appendingPathComponent(subItem)
+                                if subItemPath.hasSuffix(".app") {
+                                    let (type, architectures) = self.getAppTypeAndArchitectures(appPath: subItemPath)
+                                    let icon = self.getAppIcon(appPath: subItemPath)
+                                    apps.append((name: subItem, path: subItemPath, type: type, architectures: architectures, icon: icon))
+                                }
+                            }
+                        }
+                    }
                 }
             }
-            return count
+
+            DispatchQueue.main.async {
+                completion(apps)
+            }
         }
+    }
+
+    private func getAppTypeAndArchitectures(appPath: String) -> (String, String) {
+        let macOSPath = (appPath as NSString).appendingPathComponent("Contents/MacOS")
+        var architectures: [String] = []
+        if let executables = try? fileManager.contentsOfDirectory(atPath: macOSPath) {
+            for executable in executables {
+                let executablePath = (macOSPath as NSString).appendingPathComponent(executable)
+                if let archs = fileOperations.getArchitectures(path: executablePath) {
+                    architectures.append(contentsOf: archs)
+                }
+            }
+        }
+        let uniqueArchitectures = Array(Set(architectures))
+        let type = uniqueArchitectures.count > 1 ? "Universal" : (uniqueArchitectures.first == ProcessInfo.processInfo.machineArchitecture ? "Native" : "Other")
+        let architectureNames = uniqueArchitectures.map { architectureName($0) }
+        return (type, architectureNames.joined(separator: ", "))
+    }
+
+    private func getAppIcon(appPath: String) -> NSImage? {
+        let infoPlistPath = (appPath as NSString).appendingPathComponent("Contents/Info.plist")
+        if let infoPlist = NSDictionary(contentsOfFile: infoPlistPath),
+           let iconFile = infoPlist["CFBundleIconFile"] as? String ?? infoPlist["CFBundleIconName"] as? String {
+            let iconFileName = (iconFile as NSString).deletingPathExtension
+            let resourcesPath = (appPath as NSString).appendingPathComponent("Contents/Resources")
+            do {
+                if let iconPath = try fileManager.contentsOfDirectory(atPath: resourcesPath).first(where: { $0.hasPrefix(iconFileName) && $0.hasSuffix(".icns") }) {
+                    return NSImage(contentsOfFile: (resourcesPath as NSString).appendingPathComponent(iconPath))
+                }
+            } catch {
+                print("Error fetching contents of directory at path: \(resourcesPath), error: \(error)")
+            }
+        }
+        return nil
+    }
+
+    private func architectureName(_ architecture: String) -> String {
+        switch architecture {
+        case "x86_64":
+            return "Intel 64-bit"
+        case "i386":
+            return "Intel 32-bit"
+        case "arm64":
+            return "Apple Silicon (arm64)"
+        default:
+            return architecture
+        }
+    }
 
     func findUniversalBinaryApps() -> [String] {
         let applicationsPath = "/Applications"
@@ -31,13 +107,18 @@ class UniversalApps {
             for app in apps {
                 let appPath = (applicationsPath as NSString).appendingPathComponent(app)
                 if appPath.hasSuffix(".app") && !defaultMacOSApps.contains(app) {
-                    let macOSPath = (appPath as NSString).appendingPathComponent("Contents/MacOS")
-                    if let executables = try? fileManager.contentsOfDirectory(atPath: macOSPath) {
-                        for executable in executables {
-                            let executablePath = (macOSPath as NSString).appendingPathComponent(executable)
-                            if fileOperations.isUniversal(path: executablePath, targetArch: ProcessInfo.processInfo.machineArchitecture) != nil {
-                                universalBinaryApps.append(appPath)
-                                break
+                    if isUniversalApp(appPath: appPath) {
+                        universalBinaryApps.append(appPath)
+                    }
+                } else if !defaultMacOSApps.contains(app) {
+                    // Check one level deeper if the directory contains more than one item
+                    if let subItems = try? fileManager.contentsOfDirectory(atPath: appPath), subItems.count > 1 {
+                        for subItem in subItems {
+                            let subItemPath = (appPath as NSString).appendingPathComponent(subItem)
+                            if subItemPath.hasSuffix(".app") {
+                                if isUniversalApp(appPath: subItemPath) {
+                                    universalBinaryApps.append(subItemPath)
+                                }
                             }
                         }
                     }
@@ -48,7 +129,20 @@ class UniversalApps {
         return universalBinaryApps
     }
 
-    func fetchDefaultMacOSApps() -> Set<String> {
+    private func isUniversalApp(appPath: String) -> Bool {
+        let macOSPath = (appPath as NSString).appendingPathComponent("Contents/MacOS")
+        if let executables = try? fileManager.contentsOfDirectory(atPath: macOSPath) {
+            for executable in executables {
+                let executablePath = (macOSPath as NSString).appendingPathComponent(executable)
+                if fileOperations.isUniversal(path: executablePath, targetArch: ProcessInfo.processInfo.machineArchitecture) != nil {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    public func fetchDefaultMacOSApps() -> Set<String> {
         var defaultApps = Set<String>()
 
         let systemAppsPaths = [

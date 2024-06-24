@@ -34,7 +34,7 @@ Alternatively, you can permanently allow the app using the System Preferences:
 3. Confirm by clicking "Open" in the subsequent dialog.
 
 ## App Usage
-<img src="https://i.imgur.com/xGS3Oid.png" width="95%" alt="archify">
+<img src="https://i.imgur.com/UWPhI0t.png" width="95%" alt="archify">
 
 The new GUI for Archify provides an interface for managing the applications. The GUI includes features such as:
 
@@ -45,6 +45,7 @@ The new GUI for Archify provides an interface for managing the applications. The
 5. **Size Calculation**: Calculate how much space is being used up by unnecessary binaries in each app.
 6. **Language Cleaner**: Scan the `/Applications` directory to find and remove unnecessary language files from apps
 7. **Batch Processing**: Scan and process all apps in the `/Applications` directory in one go
+8. **Universal Apps**: View the state of the installed apps as native or universal
 
 ### Note
 - The default options should work the best. It is recommended to only use `App launch (cache)` first.
@@ -130,6 +131,7 @@ The apps I have generated so far work without any issues. If the app crashes, tr
 - Language (.lproj) Cleaner to scan `/Applications` and remove unnecessary language files.
 - Batch processing to scan and process all universal apps in the `/Applications` directory
 - Added helper tool for privileged operations to remove files, extract and sign binaries, and set file permissions.
+- Universal apps view
 
 ### Version 1.1.0
 

@@ -1,36 +1,57 @@
+//
+//  BatchProcessing.swift
+//  archify
+//
+//  Created by oct4pie on 6/20/24.
+//
+
 import Combine
 import Foundation
 import AppKit
 
 class BatchProcessing: ObservableObject {
-    @Published var appSizes: [(String, UInt64)] = []
-    @Published var progress: Double = 0.0
+    @Published var appSizes: [(String, UInt64, UInt64)] = []  // (app path, total size, savable size)
+    @Published var scanningProgress: Double = 0.0
+    @Published var processingProgress: Double = 0.0
     @Published var currentApp: String = ""
     @Published var selectedApps: Set<String> = []
+    @Published var isScanning: Bool = false
     @Published var isProcessing: Bool = false
     @Published var totalSavedSpace: UInt64 = 0
     @Published var logMessages: String = ""
-
+    @Published var initialTotalSize: UInt64 = 0
+    @Published var finalTotalSize: UInt64 = 0
+    @Published var savedSpaces: [String: UInt64] = [:]
+    
     private let appState = AppState()
+    private let universalApps = UniversalApps()
+    private var scanStartTime: Date?
+    private var processStartTime: Date?
+    private let fileManager = FileManager.default
 
     func startCalculatingSizes() {
-        isProcessing = true
+        isScanning = true
         appSizes = []
-        progress = 0.0
+        scanningProgress = 0.0
         currentApp = ""
+        scanStartTime = Date()
 
         DispatchQueue.global(qos: .background).async {
-            let universalApps = UniversalApps()
             let systemArch = self.systemArchitecture()
-            universalApps.produceSortedList(systemArch: systemArch, progressHandler: { app, processed, total in
+            self.universalApps.produceSortedList(systemArch: systemArch, progressHandler: { app, processed, total in
                 DispatchQueue.main.async {
                     self.currentApp = URL(fileURLWithPath: app).lastPathComponent
-                    self.progress = Double(processed) / Double(total)
+                    self.scanningProgress = Double(processed) / Double(total)
                 }
             }) { sortedAppSizes in
                 DispatchQueue.main.async {
-                    self.appSizes = sortedAppSizes
-                    self.isProcessing = false
+                    self.appSizes = sortedAppSizes.map { (app, savableSize) in
+                        let totalSize = self.calculateDirectorySize(app)
+                        print("App: \(app), Total Size: \(totalSize), Savable Size: \(savableSize)")
+                        return (app, totalSize, savableSize)
+                    }
+                    self.isScanning = false
+                    self.scanStartTime = nil
                 }
             }
         }
@@ -38,56 +59,95 @@ class BatchProcessing: ObservableObject {
 
     func startProcessingSelectedApps() {
         isProcessing = true
-        appState.isProcessing = true
-        appState.logMessages = ""
+        processingProgress = 0.0
+        logMessages = ""
         totalSavedSpace = 0
+        initialTotalSize = 0
+        finalTotalSize = 0
+        savedSpaces = [:]
+        processStartTime = Date()
 
         guard HelperToolManager.shared.blessHelperTool() else {
-            print("Failed to install helper tool.")
+            logMessages += "Failed to install helper tool.\n"
+            isProcessing = false
             return
+        }
+
+        // Calculate initial total size and savable size
+        for app in selectedApps {
+            if let appInfo = appSizes.first(where: { $0.0 == app }) {
+                initialTotalSize += appInfo.1  // Total size
+                finalTotalSize += appInfo.1    // Initialize final size as total size
+            }
         }
 
         HelperToolManager.shared.interactWithHelperTool(command: .checkFullDiskAccess) { [weak self] hasAccess, error in
             guard let self = self else { return }
             if hasAccess {
-                self.processSelectedApps()
+                self.processApps()
             } else {
                 self.promptForFullDiskAccess()
                 self.isProcessing = false
-                self.appState.isProcessing = false
             }
         }
     }
 
-    private func processSelectedApps() {
-        DispatchQueue.global(qos: .background).async {
-            let appStateDict = self.appState.toDictionary()
-            let group = DispatchGroup()
+    private func processApps() {
+        let totalApps = selectedApps.count
+        var processedApps = 0
 
-            for app in self.selectedApps {
-                group.enter()
-                HelperToolManager.shared.interactWithHelperTool(command: .extractAndSignBinaries(dir: app, targetArch: self.systemArchitecture(), noSign: true, noEntitlements: true, appStateDict: appStateDict)) { success, errorString in
+        for app in selectedApps {
+            DispatchQueue.main.async {
+                self.currentApp = URL(fileURLWithPath: app).lastPathComponent
+            }
+
+            guard let appInfo = appSizes.first(where: { $0.0 == app }) else { continue }
+            let originalSize = appInfo.1
+            let expectedSavableSize = appInfo.2
+
+            let appStateDict = self.appState.toDictionary()
+            HelperToolManager.shared.interactWithHelperTool(command: .extractAndSignBinaries(dir: app, targetArch: self.systemArchitecture(), noSign: true, noEntitlements: true, appStateDict: appStateDict)) { success, errorString in
+                DispatchQueue.main.async {
+                    processedApps += 1
+                    self.processingProgress = Double(processedApps) / Double(totalApps)
+
                     if success {
-                        DispatchQueue.main.async {
-                            if let index = self.appSizes.firstIndex(where: { $0.0 == app }) {
-                                self.totalSavedSpace += self.appSizes[index].1
-                                self.appSizes.remove(at: index)
-                                self.selectedApps.remove(app)
-                            }
-                        }
-                        print("Processed \(app) successfully")
+                        let newSize = self.calculateDirectorySize(app)
+                        let actualSavedSpace = originalSize - newSize
+                        
+                        self.savedSpaces[app] = actualSavedSpace
+                        self.totalSavedSpace += actualSavedSpace
+                        self.finalTotalSize -= actualSavedSpace
+
+                        self.logMessages += "Processed \(app) successfully. Saved \(actualSavedSpace.humanReadableSize()) (Expected: \(expectedSavableSize.humanReadableSize()))\n"
                     } else {
-                        print("Failed to process \(app): \(errorString ?? "Unknown error")")
+                        self.logMessages += "Failed to process \(app): \(errorString ?? "Unknown error")\n"
                     }
-                    group.leave()
+
+                    if processedApps == totalApps {
+                        self.isProcessing = false
+                        self.processStartTime = nil
+                    }
                 }
             }
+        }
+    }
 
-            group.notify(queue: .main) {
-                self.isProcessing = false
-                self.appState.isProcessing = false
+    private func calculateDirectorySize(_ path: String) -> UInt64 {
+        guard let enumerator = fileManager.enumerator(atPath: path) else { return 0 }
+        var size: UInt64 = 0
+
+        while let filePath = enumerator.nextObject() as? String {
+            let fullPath = (path as NSString).appendingPathComponent(filePath)
+            do {
+                let attributes = try fileManager.attributesOfItem(atPath: fullPath)
+                size += attributes[.size] as? UInt64 ?? 0
+            } catch {
+                print("Error calculating size for \(fullPath): \(error)")
             }
         }
+
+        return size
     }
 
     func selectAllApps() {
@@ -128,7 +188,7 @@ class BatchProcessing: ObservableObject {
             alert.informativeText = """
             This application requires Full Disk Access to function properly.
             Please go to System Preferences > Security & Privacy > Privacy > Full Disk Access
-            and check "com.oct4pie" in the list.
+            and check the checkbox for this application.
             """
             alert.alertStyle = .warning
             alert.addButton(withTitle: "OK")

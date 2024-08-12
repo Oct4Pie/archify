@@ -83,7 +83,7 @@ class LanguageCleaner: ObservableObject {
         progress = 0.0
         let fileManager = FileManager.default
         let applicationPath = "/Applications"
-        let defaultMacOSApps = UniversalApps.shared.fetchDefaultMacOSApps()
+        let defaultMacOSApps = defaultMacOSApps() // Use the function to get default apps
         var tempApps: [AppLanguage] = []
         var allLanguages: Set<String> = []
         var appLanguages: [String: [String: [String]]] = [:] // Maps app names to a dictionary of language names and their paths
@@ -99,6 +99,7 @@ class LanguageCleaner: ObservableObject {
                     if fileManager.fileExists(atPath: fullPath, isDirectory: &isDir), isDir.boolValue {
                         processedCount += 1
                         let appName = item
+                        // Skip the app if it's in the default MacOS apps set
                         if defaultMacOSApps.contains(appName) {
                             continue
                         }

@@ -1,3 +1,10 @@
+//
+//  UniversalApps.swift
+//  archify
+//
+//  Created by oct4pie on 6/20/24.
+//
+
 import Foundation
 import AppKit
 
@@ -101,7 +108,7 @@ class UniversalApps {
         let applicationsPath = "/Applications"
         var universalBinaryApps: [String] = []
 
-        let defaultMacOSApps = fetchDefaultMacOSApps()
+        let defaultMacOSApps = defaultMacOSApps()
 
         if let apps = try? fileManager.contentsOfDirectory(atPath: applicationsPath) {
             for app in apps {
@@ -142,25 +149,6 @@ class UniversalApps {
         return false
     }
 
-    public func fetchDefaultMacOSApps() -> Set<String> {
-        var defaultApps = Set<String>()
-
-        let systemAppsPaths = [
-            "/System/Applications",
-            "/System/Applications/Utilities"
-        ]
-
-        for path in systemAppsPaths {
-            if let apps = try? fileManager.contentsOfDirectory(atPath: path) {
-                defaultApps.formUnion(apps)
-            }
-        }
-        
-        defaultApps.insert("Xcode.app")
-        defaultApps.insert("Safari.app")
-
-        return defaultApps
-    }
 
     func calculateUnneededArchSize(
         appPath: String, systemArch: String, progressHandler: @escaping (Int) -> Void, maxConcurrentProcesses: Int

@@ -125,6 +125,11 @@ I was tired of downloading bloated universal apps, and managing the space became
 The apps I have generated so far work without any issues. If the app crashes, try using `ldid`, `codesign` (with/without entitlements) flags for signing. `-Ns` should work most of the time because of fake-signing. This project is published for educational purposes. Although the script does not alter the original apps, use it with caution. I am not responsible for any harm done.
 
 ## Changelog
+### Version 1.2.0
+- Multiple UI enhancements
+- Dyanmic versioning
+- Improved helper tool disk access checks
+- Persistence for universal apps view
 
 ### Version 1.2.0
 

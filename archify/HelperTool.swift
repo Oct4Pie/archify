@@ -86,27 +86,27 @@ class HelperToolManager {
         }
     }
     
-    func removeHelperTool() -> Bool {
-        var authRef: AuthorizationRef?
-        let status = AuthorizationCreate(nil, nil, [.interactionAllowed, .preAuthorize, .extendRights], &authRef)
-        
-        guard status == errAuthorizationSuccess else {
-            print("Authorization failed: \(status)")
-            return false
-        }
-        
-        var error: Unmanaged<CFError>?
-        let success = SMJobRemove(kSMDomainSystemLaunchd, "com.oct4pie.archifyhelper" as CFString, authRef, true, &error)
-        
-        if !success {
-            if let error = error?.takeRetainedValue() {
-                print("SMJobRemove failed: \(error)")
-            }
-            return false
-        }
-        
-        return true
-    }
+//    func removeHelperTool() -> Bool {
+//        var authRef: AuthorizationRef?
+//        let status = AuthorizationCreate(nil, nil, [.interactionAllowed, .preAuthorize, .extendRights], &authRef)
+//        
+//        guard status == errAuthorizationSuccess else {
+//            print("Authorization failed: \(status)")
+//            return false
+//        }
+//        
+//        var error: Unmanaged<CFError>?
+//        let success = SMJobRemove(kSMDomainSystemLaunchd, "com.oct4pie.archifyhelper" as CFString, authRef, true, &error)
+//        
+//        if !success {
+//            if let error = error?.takeRetainedValue() {
+//                print("SMJobRemove failed: \(error)")
+//            }
+//            return false
+//        }
+//        
+//        return true
+//    }
     
     private func createAppleScript(helperToolPath: String, launchDaemonPlistPath: String) -> String {
         return """

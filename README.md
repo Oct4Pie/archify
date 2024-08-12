@@ -34,7 +34,7 @@ Alternatively, you can permanently allow the app using the System Preferences:
 3. Confirm by clicking "Open" in the subsequent dialog.
 
 ## App Usage
-<img src="https://i.imgur.com/UWPhI0t.png" width="95%" alt="archify">
+<img width="1200" alt="appusage.png" src="https://github.com/user-attachments/assets/ded275d6-fe97-42d4-a54e-d78ca84fc533">
 
 The new GUI for Archify provides an interface for managing the applications. The GUI includes features such as:
 

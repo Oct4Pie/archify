@@ -27,7 +27,7 @@ extension FileManager {
 
 extension Color {
     init(nsColor: NSColor) {
-        self.init(nsColor.cgColor ?? .clear)
+        self.init(nsColor.cgColor)
     }
 }
 

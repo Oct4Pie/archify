@@ -7,96 +7,120 @@
 
 import SwiftUI
 
-enum UtilityType: Hashable {
-    case appProcessor
-    case sizeCalculation
-    case langCleaner
-    case batchProcessor
-    case universalApps
+enum UtilityType: String, CaseIterable {
+    case appProcessor = "App Processor"
+    case sizeCalculation = "Size Calculation"
+    case langCleaner = "Language Cleaner"
+    case batchProcessor = "Batch Processor"
+    case universalApps = "Universal Apps"
+
+    var icon: String {
+        switch self {
+        case .appProcessor: return "gearshape.fill"
+        case .sizeCalculation: return "chart.bar.fill"
+        case .langCleaner: return "globe"
+        case .batchProcessor: return "square.stack.3d.up.fill"
+        case .universalApps: return "apps.iphone"
+        }
+    }
 }
 
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
     @State private var selectedUtility: UtilityType? = .appProcessor
+    @State private var isHovering: UtilityType?
+    @State private var showSidebar: Bool = true
 
     var body: some View {
         NavigationView {
-            List {
-                Section(header: Text("General")) {
-                    NavigationLink(
-                        destination: AppProcessingView(),
-                        tag: UtilityType.appProcessor,
-                        selection: $selectedUtility
-                    ) {
-                        Label("App Processor", systemImage: "gear")
-                            .font(.title3)
-                            .padding(.vertical, 8)
-                    }
-                    NavigationLink(
-                        destination: SizeCalculationView(),
-                        tag: UtilityType.sizeCalculation,
-                        selection: $selectedUtility
-                    ) {
-                        Label("Size Calculation", systemImage: "chart.bar")
-                            .font(.title3)
-                            .padding(.vertical, 8)
-                    }
-                    NavigationLink(
-                        destination: UniversalAppsView(),
-                        tag: UtilityType.universalApps,
-                        selection: $selectedUtility
-                    ) {
-                        Label("Universal Apps", systemImage: "app.fill")
-                            .font(.title3)
-                            .padding(.vertical, 8)
-                    }
-                }
-                
-                Section(header: Text("Advanced")) {
-                    NavigationLink(
-                        destination: LanguageCleanerView(),
-                        tag: UtilityType.langCleaner,
-                        selection: $selectedUtility
-                    ) {
-                        Label("Language Cleaner", systemImage: "globe")
-                            .font(.title3)
-                            .padding(.vertical, 8)
-                    }
-                    NavigationLink(
-                        destination: BatchProcessingView(),
-                        tag: UtilityType.batchProcessor,
-                        selection: $selectedUtility
-                    ) {
-                        Label("Batch Processor", systemImage: "rectangle.stack.fill")
-                            .font(.title3)
-                            .padding(.vertical, 8)
-                    }
-                    
-                }
+            if showSidebar {
+                sidebar
             }
-            .listStyle(SidebarListStyle())
-            .navigationTitle("Utilities")
-            .toolbar {
-                ToolbarItem(placement: .automatic) {
-                    Button(action: toggleSidebar) {
-                        Image(systemName: "sidebar.left")
-                    }
-                }
-            }
-            AppProcessingView()
+            
+            mainContent
         }
-        .frame(minWidth: 700, minHeight: 650)
-        .background(Color(NSColor.windowBackgroundColor))
-        .accentColor(.blue)
+        .navigationViewStyle(DoubleColumnNavigationViewStyle())
     }
 
-    private func toggleSidebar() {
-        NSApp.keyWindow?.firstResponder?.tryToPerform(#selector(NSSplitViewController.toggleSidebar(_:)), with: nil)
+    var sidebar: some View {
+        List {
+            ForEach(UtilityType.allCases, id: \.self) { utility in
+                NavigationLink(
+                    destination: destinationView(for: utility),
+                    tag: utility,
+                    selection: $selectedUtility
+                ) {
+                    HStack {
+                        Image(systemName: utility.icon)
+                            .foregroundColor(.blue)
+                            .imageScale(.large)
+                        Text(utility.rawValue)
+                            .font(.headline)
+                    }
+                    .padding(.vertical, 8)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(isHovering == utility ? Color.blue.opacity(0.1) : Color.clear)
+                )
+                .onHover { hovering in
+                    isHovering = hovering ? utility : nil
+                }
+            }
+        }
+        .listStyle(SidebarListStyle())
+        .frame(minWidth: 200)
+    }
+
+    var mainContent: some View {
+        Group {
+            if let selectedUtility = selectedUtility {
+                destinationView(for: selectedUtility)
+            } else {
+                welcomeView
+            }
+        }
+    }
+
+    var welcomeView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "apps.iphone")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 100, height: 100)
+                .foregroundColor(.blue)
+            Text("Welcome to Archify")
+                .font(.largeTitle)
+                .fontWeight(.bold)
+            Text("Select a utility from the sidebar to get started")
+                .font(.title3)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(NSColor.windowBackgroundColor))
+    }
+
+    @ViewBuilder
+    func destinationView(for utility: UtilityType) -> some View {
+        switch utility {
+        case .appProcessor:
+            AppProcessingView()
+        case .sizeCalculation:
+            SizeCalculationView()
+        case .langCleaner:
+            LanguageCleanerView()
+        case .batchProcessor:
+            BatchProcessingView()
+        case .universalApps:
+            UniversalAppsView()
+        }
     }
 }
 
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
+            .environmentObject(AppState())
     }
 }

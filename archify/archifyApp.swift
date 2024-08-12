@@ -13,6 +13,7 @@ struct archifyApp: App {
     @StateObject var languageCleaner = LanguageCleaner()
     @StateObject var batchProcessing = BatchProcessing()
     @StateObject var sizeCalculation = SizeCalculation()
+    @StateObject var universalAppsView = UniversalAppsViewModel()
   var body: some Scene {
     WindowGroup {
       ContentView()
@@ -20,6 +21,7 @@ struct archifyApp: App {
             .environmentObject(languageCleaner)
             .environmentObject(batchProcessing)
             .environmentObject(sizeCalculation)
+            .environmentObject(universalAppsView)
     }
   }
 }

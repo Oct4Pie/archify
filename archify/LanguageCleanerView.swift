@@ -12,37 +12,27 @@ struct LanguageCleanerView: View {
     @EnvironmentObject var viewModel: LanguageCleaner
 
     var body: some View {
-        
-            VStack {
-                ScrollView {
-                if viewModel.isScanning {
-                    scanningView
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if viewModel.isRemoving {
-                    removingView
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    HStack {
-                        VStack {
-                            selectAllButton
-                            uniqueLanguagesList
-                                .frame(minHeight: 500)
-                        }
-                        VStack {
-                            searchBar
-                            appsList
-                                .frame(minHeight: 500)
-                        }
+        VStack {
+            ScrollView {
+                VStack {
+                    if viewModel.isScanning {
+                        scanningView
+                    } else if viewModel.isRemoving {
+                        removingView
+                    } else {
+                        content
                     }
-                    controlButtons
                 }
-                if viewModel.removedFilesLog != "" {
-                    removedFilesLog
-                }
+                .padding()
+                .frame(minWidth: 600, maxHeight: 750)
+                VStack {
+                    if viewModel.removedFilesLog != "" {
+                        removedFilesLog
+                    }
+                }.padding()
             }
-            .padding()
-            
-        }.frame(minWidth: 600, maxHeight: .infinity)
+        
+        }.background(Color(NSColor.windowBackgroundColor))
     }
 
     @ViewBuilder
@@ -51,11 +41,14 @@ struct LanguageCleanerView: View {
             Spacer()
             VStack {
                 ProgressView("Scanning...", value: viewModel.progress, total: 1.0)
+                    .progressViewStyle(CircularProgressViewStyle())
                     .padding()
                 Text(String(format: "%.0f%%", viewModel.progress * 100))
+                    .font(.title2)
+                    .bold()
                 Text(viewModel.currentlyScanningApp)
                     .font(.subheadline)
-                    .foregroundColor(.gray)
+                    .foregroundColor(.secondary)
                     .padding(.top, 10)
             }
             Spacer()
@@ -69,11 +62,14 @@ struct LanguageCleanerView: View {
             Spacer()
             VStack {
                 ProgressView("Removing...", value: viewModel.progress, total: 1.0)
+                    .progressViewStyle(CircularProgressViewStyle())
                     .padding()
                 Text(String(format: "%.0f%%", viewModel.progress * 100))
+                    .font(.title2)
+                    .bold()
                 Text(viewModel.currentlyRemovingFile)
                     .font(.subheadline)
-                    .foregroundColor(.gray)
+                    .foregroundColor(.secondary)
                     .padding(.top, 10)
             }
             Spacer()
@@ -82,11 +78,44 @@ struct LanguageCleanerView: View {
     }
 
     @ViewBuilder
-    private var selectAllButton: some View {
-        Button(viewModel.isAllLanguagesSelected ? "Deselect All Languages" : "Select All Languages") {
-            viewModel.toggleSelectAllLanguages()
+    private var content: some View {
+        HStack(alignment: .top) {
+            VStack {
+                selectAllButton
+                uniqueLanguagesList
+                    .frame(minHeight: 500)
+            }
+            .frame(maxWidth: 200)
+
+            VStack {
+                searchBar
+                appsList
+                    .frame(minHeight: 500)
+            }
+            .frame(maxWidth: .infinity)
         }
         .padding()
+        .background(RoundedRectangle(cornerRadius: 10)
+                        .fill(Color(NSColor.controlBackgroundColor))
+                        .shadow(radius: 2))
+        controlButtons
+            .padding(.top)
+    }
+
+    @ViewBuilder
+    private var selectAllButton: some View {
+        Button(action: {
+            viewModel.toggleSelectAllLanguages()
+        }) {
+            Text(viewModel.isAllLanguagesSelected ? "Deselect All Languages" : "Select All Languages")
+                .font(.headline)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(PlainButtonStyle())
+        .background(Color.accentColor)
+        .foregroundColor(.white)
+        .cornerRadius(8)
+        .padding(.vertical, 10)
     }
 
     @ViewBuilder
@@ -99,8 +128,10 @@ struct LanguageCleanerView: View {
                     Spacer()
                     if viewModel.selectedLanguages.contains(language) {
                         Image(systemName: "checkmark")
+                            .foregroundColor(.accentColor)
                     }
                 }
+                .padding(.horizontal, 5)
                 .contentShape(Rectangle())
                 .onTapGesture {
                     if !viewModel.shouldGrayOutLanguage(language) {
@@ -110,86 +141,119 @@ struct LanguageCleanerView: View {
             }
         }
         .listStyle(PlainListStyle())
-        .frame(minWidth: 200)
+    }
+
+    @ViewBuilder
+    private var appsList: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading) {
+                ForEach(viewModel.filteredApps) { app in
+                    DisclosureGroup(
+                        isExpanded: Binding(
+                            get: { viewModel.expandedApps[app.id, default: false] },
+                            set: { viewModel.expandedApps[app.id] = $0 }
+                        )
+                    ) {
+                        VStack(alignment: .leading) {
+                            Button(action: {
+                                viewModel.toggleSelectAllLanguages(in: app)
+                            }) {
+                                HStack {
+                                    Text(viewModel.isAllLanguagesSelected(in: app) ? "Deselect All Languages" : "Select All Languages")
+                                    Spacer()
+                                    if viewModel.isAllLanguagesSelected(in: app) {
+                                        Image(systemName: "checkmark")
+                                            .foregroundColor(.accentColor)
+                                    }
+                                }
+                                .padding(.horizontal, 5)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+
+                            ForEach(app.languages, id: \.self) { language in
+                                HStack {
+                                    Text(language)
+                                        .foregroundColor(viewModel.shouldGrayOutLanguage(language) ? .gray : .primary)
+                                    Spacer()
+                                    if viewModel.isLanguageSelectedInApp(language, app: app) {
+                                        Image(systemName: "checkmark")
+                                            .foregroundColor(.accentColor)
+                                    }
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 2)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    if !viewModel.shouldGrayOutLanguage(language) {
+                                        viewModel.toggleLanguageInApp(language, app: app)
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        Text(app.appName)
+                            .font(.headline)
+                            .padding(.vertical, 5)
+                    }
+                }
+            }
+        }
+        .background(Color(NSColor.controlBackgroundColor))
     }
 
     @ViewBuilder
     private var searchBar: some View {
         HStack {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(.secondary)
             TextField("Search Apps", text: $viewModel.searchText)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-                .padding()
+                .textFieldStyle(PlainTextFieldStyle())
+                .padding(8)
+                .background(Color(NSColor.tertiaryLabelColor).opacity(0.1))
+                .cornerRadius(8)
         }
-    }
-
-    @ViewBuilder
-    private var appsList: some View {
-        List {
-            ForEach(viewModel.filteredApps) { app in
-                DisclosureGroup(
-                    isExpanded: Binding(
-                        get: { viewModel.expandedApps[app.id, default: false] },
-                        set: { viewModel.expandedApps[app.id] = $0 }
-                    )
-                ) {
-                    VStack(alignment: .leading) {
-                        Button(action: {
-                            viewModel.toggleSelectAllLanguages(in: app)
-                        }) {
-                            HStack {
-                                Text(viewModel.isAllLanguagesSelected(in: app) ? "Deselect All Languages" : "Select All Languages")
-                                Spacer()
-                                if viewModel.isAllLanguagesSelected(in: app) {
-                                    Image(systemName: "checkmark")
-                                }
-                            }
-                            .padding(.vertical, 5)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(PlainButtonStyle())
-
-                        ForEach(app.languages, id: \.self) { language in
-                            HStack {
-                                Text(language)
-                                    .foregroundColor(viewModel.shouldGrayOutLanguage(language) ? .gray : .primary)
-                                Spacer()
-                                if viewModel.isLanguageSelectedInApp(language, app: app) {
-                                    Image(systemName: "checkmark")
-                                }
-                            }
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                if !viewModel.shouldGrayOutLanguage(language) {
-                                    viewModel.toggleLanguageInApp(language, app: app)
-                                }
-                            }
-                        }
-                    }
-                } label: {
-                    Text(app.appName)
-                }
-            }
-        }
-        .listStyle(SidebarListStyle())
-        .frame(minWidth: 400)
+        .padding(.vertical)
     }
 
     @ViewBuilder
     private var controlButtons: some View {
-        HStack {
-            Button("Scan") {
+        HStack(spacing: 10) {
+            Button(action: {
                 viewModel.scanForAppsAndLanguages()
+            }) {
+                VStack {
+                    Text("Scan")
+                }
+                .padding(.horizontal, 25)
+                .padding(.vertical, 7)
+                .background(Color.blue)
+
             }
-            .padding()
-            
-            Button("Remove Selected") {
+            .buttonStyle(LinkButtonStyle())
+            .foregroundColor(.white)
+            .cornerRadius(8)
+
+            Button(action: {
                 viewModel.removeSelected()
+            }) {
+
+                    
+                VStack {
+                    Text("Remove Selected")
+                        .padding(.vertical, 5)
+                        .padding(.horizontal, 25)
+                }
+           
             }
-            .padding()
+            .background(viewModel.isRemoveButtonEnabled ? Color.red : Color.gray)
+            .foregroundColor(.white)
+            
             .disabled(!viewModel.isRemoveButtonEnabled)
+            .cornerRadius(8)
         }
+        .padding(.horizontal)
     }
-    
+
     @ViewBuilder
     private var removedFilesLog: some View {
         VStack(alignment: .leading) {
@@ -201,9 +265,13 @@ struct LanguageCleanerView: View {
                     .padding()
             }
             .frame(maxHeight: 250)
-            .border(Color.gray, width: 1)
+            .background(RoundedRectangle(cornerRadius: 8)
+                            .fill(Color(NSColor.textBackgroundColor)))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.gray, lineWidth: 1)
+            )
         }
         .padding(5)
     }
 }
-

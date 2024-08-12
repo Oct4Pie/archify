@@ -10,7 +10,6 @@
 		B22648CC2C29B5AA00A54ADB /* BatchProcessing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22648CB2C29B5AA00A54ADB /* BatchProcessing.swift */; };
 		B22648CE2C29B6AF00A54ADB /* SizeCalculation.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22648CD2C29B6AF00A54ADB /* SizeCalculation.swift */; };
 		B22648D02C29CAFB00A54ADB /* UniversalAppsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22648CF2C29CAFB00A54ADB /* UniversalAppsView.swift */; };
-		B22671EA2C244477006D8ADF /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = B22671E92C244477006D8ADF /* Info.plist */; };
 		B22671EE2C245802006D8ADF /* HelperToolProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22671ED2C245802006D8ADF /* HelperToolProtocol.swift */; };
 		B22671F62C25C9F3006D8ADF /* BatchProcessingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22671F52C25C9F3006D8ADF /* BatchProcessingView.swift */; };
 		B22672042C26E752006D8ADF /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22672032C26E752006D8ADF /* AppState.swift */; };
@@ -18,7 +17,6 @@
 		B22672092C26E788006D8ADF /* Signer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22672072C26E788006D8ADF /* Signer.swift */; };
 		B226720A2C26E788006D8ADF /* Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22672082C26E788006D8ADF /* Extensions.swift */; };
 		B226720E2C26E7DB006D8ADF /* FileOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = B226720D2C26E7DB006D8ADF /* FileOperations.swift */; };
-		B249E79B2C21B825002822CA /* ldid in Resources */ = {isa = PBXBuildFile; fileRef = B249E79A2C21B825002822CA /* ldid */; };
 		B249E79F2C22C8CD002822CA /* LanguageCleaner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B249E79E2C22C8CC002822CA /* LanguageCleaner.swift */; };
 		B249E7A12C22C908002822CA /* LanguageCleanerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B249E7A02C22C908002822CA /* LanguageCleanerView.swift */; };
 		B249E7A92C23D8FA002822CA /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = B249E7A82C23D8FA002822CA /* main.swift */; };
@@ -27,13 +25,16 @@
 		B249E7B22C23DADF002822CA /* MainApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B249E7B12C23DADF002822CA /* MainApp.swift */; };
 		B249E7BA2C23E219002822CA /* HelperTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = B249E7B92C23E219002822CA /* HelperTool.swift */; };
 		B249E7C12C23E787002822CA /* com.oct4pie.archifyhelper.plist in CopyFiles */ = {isa = PBXBuildFile; fileRef = B249E7B42C23DCDB002822CA /* com.oct4pie.archifyhelper.plist */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		B2962C872C688EA000474ED6 /* ldid in Resources */ = {isa = PBXBuildFile; fileRef = B2962C862C688EA000474ED6 /* ldid */; };
+		B2962C892C688F9E00474ED6 /* Common.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2962C882C688F9E00474ED6 /* Common.swift */; };
+		B2962C8B2C6890B200474ED6 /* Version.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2962C8A2C6890B200474ED6 /* Version.swift */; };
+		B2962D562C68920800474ED6 /* Version.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2962D552C68920800474ED6 /* Version.swift */; };
 		B2BABC2F2C240E13009AAF01 /* FileOperationsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2BABC2E2C240E13009AAF01 /* FileOperationsManager.swift */; };
 		B2BABC312C240E37009AAF01 /* PermissionsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2BABC302C240E37009AAF01 /* PermissionsManager.swift */; };
 		B2BABC322C242BDF009AAF01 /* com.oct4pie.archifyhelper in CopyFiles */ = {isa = PBXBuildFile; fileRef = B249E7A62C23D8FA002822CA /* com.oct4pie.archifyhelper */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		B2C0EBEF2C1AB05300132B38 /* archifyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C0EBEE2C1AB05300132B38 /* archifyApp.swift */; };
 		B2C0EBF12C1AB05300132B38 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C0EBF02C1AB05300132B38 /* ContentView.swift */; };
 		B2C0EBF32C1AB05400132B38 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B2C0EBF22C1AB05400132B38 /* Assets.xcassets */; };
-		B2C0EBF62C1AB05400132B38 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B2C0EBF52C1AB05400132B38 /* Preview Assets.xcassets */; };
 		B2C0EC1A2C1AB14200132B38 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C0EC192C1AB14200132B38 /* AppState.swift */; };
 		B2C0EC1C2C1AB17500132B38 /* FileOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C0EC1B2C1AB17500132B38 /* FileOperations.swift */; };
 		B2C0EC1E2C1AB1B000132B38 /* Signer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C0EC1D2C1AB1B000132B38 /* Signer.swift */; };
@@ -109,7 +110,6 @@
 		B22672072C26E788006D8ADF /* Signer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Signer.swift; sourceTree = "<group>"; };
 		B22672082C26E788006D8ADF /* Extensions.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Extensions.swift; sourceTree = "<group>"; };
 		B226720D2C26E7DB006D8ADF /* FileOperations.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FileOperations.swift; sourceTree = "<group>"; };
-		B249E79A2C21B825002822CA /* ldid */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; path = ldid; sourceTree = "<group>"; };
 		B249E79E2C22C8CC002822CA /* LanguageCleaner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageCleaner.swift; sourceTree = "<group>"; };
 		B249E7A02C22C908002822CA /* LanguageCleanerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageCleanerView.swift; sourceTree = "<group>"; };
 		B249E7A62C23D8FA002822CA /* com.oct4pie.archifyhelper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = com.oct4pie.archifyhelper; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -119,22 +119,21 @@
 		B249E7B12C23DADF002822CA /* MainApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainApp.swift; sourceTree = "<group>"; };
 		B249E7B42C23DCDB002822CA /* com.oct4pie.archifyhelper.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = com.oct4pie.archifyhelper.plist; sourceTree = "<group>"; };
 		B249E7B92C23E219002822CA /* HelperTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelperTool.swift; sourceTree = "<group>"; };
+		B2962C862C688EA000474ED6 /* ldid */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; path = ldid; sourceTree = "<group>"; };
+		B2962C882C688F9E00474ED6 /* Common.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Common.swift; sourceTree = "<group>"; };
+		B2962C8A2C6890B200474ED6 /* Version.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Version.swift; sourceTree = "<group>"; };
+		B2962D552C68920800474ED6 /* Version.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = Version.swift; path = archify/Version.swift; sourceTree = SOURCE_ROOT; };
 		B2BABC2E2C240E13009AAF01 /* FileOperationsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileOperationsManager.swift; sourceTree = "<group>"; };
 		B2BABC302C240E37009AAF01 /* PermissionsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsManager.swift; sourceTree = "<group>"; };
 		B2C0EBEB2C1AB05300132B38 /* archify.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = archify.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B2C0EBEE2C1AB05300132B38 /* archifyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = archifyApp.swift; sourceTree = "<group>"; };
 		B2C0EBF02C1AB05300132B38 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		B2C0EBF22C1AB05400132B38 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		B2C0EBF52C1AB05400132B38 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		B2C0EBF72C1AB05400132B38 /* archify.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = archify.entitlements; sourceTree = "<group>"; };
 		B2C0EC192C1AB14200132B38 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		B2C0EC1B2C1AB17500132B38 /* FileOperations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileOperations.swift; sourceTree = "<group>"; };
 		B2C0EC1D2C1AB1B000132B38 /* Signer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Signer.swift; sourceTree = "<group>"; };
 		B2C0EC1F2C1AB1DB00132B38 /* Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Extensions.swift; sourceTree = "<group>"; };
-		B2C0EC212C1AC85100132B38 /* rsync */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; path = rsync; sourceTree = "<group>"; };
-		B2C0EC232C1AC94B00132B38 /* rsync */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = rsync; path = ../../../../../opt/homebrew/Cellar/rsync/3.3.0/bin/rsync; sourceTree = "<group>"; };
-		B2C0EC252C1AD08F00132B38 /* rsync */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = rsync; path = "../../../Downloads/rsync-3.3.0/rsync"; sourceTree = "<group>"; };
-		B2C0EC382C1AD5A200132B38 /* lipo */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; path = lipo; sourceTree = "<group>"; };
 		B2C0EC3A2C1AEE5800132B38 /* UniversalApps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversalApps.swift; sourceTree = "<group>"; };
 		B2C0EC3C2C1AF49A00132B38 /* AppProcessingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppProcessingView.swift; sourceTree = "<group>"; };
 		B2C0EC3E2C1AF5DD00132B38 /* SizeCalculationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SizeCalculationView.swift; sourceTree = "<group>"; };
@@ -168,6 +167,7 @@
 				B22672082C26E788006D8ADF /* Extensions.swift */,
 				B22672072C26E788006D8ADF /* Signer.swift */,
 				B22672032C26E752006D8ADF /* AppState.swift */,
+				B2962D552C68920800474ED6 /* Version.swift */,
 				B226720D2C26E7DB006D8ADF /* FileOperations.swift */,
 				B249E7AD2C23D969002822CA /* HelperTool.swift */,
 				B249E7AF2C23D984002822CA /* HelperToolProtocol.swift */,
@@ -180,7 +180,7 @@
 		B2C0EBE22C1AB05300132B38 = {
 			isa = PBXGroup;
 			children = (
-				B249E79A2C21B825002822CA /* ldid */,
+				B2962C862C688EA000474ED6 /* ldid */,
 				B2C0EBED2C1AB05300132B38 /* archify */,
 				B2C0EBEC2C1AB05300132B38 /* Products */,
 			);
@@ -199,6 +199,8 @@
 			isa = PBXGroup;
 			children = (
 				B22671E92C244477006D8ADF /* Info.plist */,
+				B2962C882C688F9E00474ED6 /* Common.swift */,
+				B2962C8A2C6890B200474ED6 /* Version.swift */,
 				B2C0EBF02C1AB05300132B38 /* ContentView.swift */,
 				B2C0EC192C1AB14200132B38 /* AppState.swift */,
 				B2C0EBEE2C1AB05300132B38 /* archifyApp.swift */,
@@ -208,7 +210,6 @@
 				B2C0EC1D2C1AB1B000132B38 /* Signer.swift */,
 				B2C0EBF22C1AB05400132B38 /* Assets.xcassets */,
 				B2C0EBF72C1AB05400132B38 /* archify.entitlements */,
-				B2C0EBF42C1AB05400132B38 /* Preview Content */,
 				B2C0EC3A2C1AEE5800132B38 /* UniversalApps.swift */,
 				B22648CF2C29CAFB00A54ADB /* UniversalAppsView.swift */,
 				B22671F52C25C9F3006D8ADF /* BatchProcessingView.swift */,
@@ -226,18 +227,6 @@
 			path = archify;
 			sourceTree = "<group>";
 		};
-		B2C0EBF42C1AB05400132B38 /* Preview Content */ = {
-			isa = PBXGroup;
-			children = (
-				B2C0EC382C1AD5A200132B38 /* lipo */,
-				B2C0EC212C1AC85100132B38 /* rsync */,
-				B2C0EC232C1AC94B00132B38 /* rsync */,
-				B2C0EC252C1AD08F00132B38 /* rsync */,
-				B2C0EBF52C1AB05400132B38 /* Preview Assets.xcassets */,
-			);
-			path = "Preview Content";
-			sourceTree = "<group>";
-		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -248,7 +237,6 @@
 				B249E7A22C23D8FA002822CA /* Sources */,
 				B249E7A32C23D8FA002822CA /* Frameworks */,
 				B249E7A42C23D8FA002822CA /* CopyFiles */,
-				B22671F42C251223006D8ADF /* ShellScript */,
 			);
 			buildRules = (
 			);
@@ -322,34 +310,12 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				B22671EA2C244477006D8ADF /* Info.plist in Resources */,
-				B249E79B2C21B825002822CA /* ldid in Resources */,
-				B2C0EBF62C1AB05400132B38 /* Preview Assets.xcassets in Resources */,
+				B2962C872C688EA000474ED6 /* ldid in Resources */,
 				B2C0EBF32C1AB05400132B38 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
-
-/* Begin PBXShellScriptBuildPhase section */
-		B22671F42C251223006D8ADF /* ShellScript */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\n";
-		};
-/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		B249E7A22C23D8FA002822CA /* Sources */ = {
@@ -362,6 +328,7 @@
 				B226720A2C26E788006D8ADF /* Extensions.swift in Sources */,
 				B226720E2C26E7DB006D8ADF /* FileOperations.swift in Sources */,
 				B22672092C26E788006D8ADF /* Signer.swift in Sources */,
+				B2962D562C68920800474ED6 /* Version.swift in Sources */,
 				B22672062C26E761006D8ADF /* UniversalApps.swift in Sources */,
 				B249E7B22C23DADF002822CA /* MainApp.swift in Sources */,
 				B249E7AE2C23D969002822CA /* HelperTool.swift in Sources */,
@@ -376,10 +343,12 @@
 				B249E7BA2C23E219002822CA /* HelperTool.swift in Sources */,
 				B2C0EC202C1AB1DB00132B38 /* Extensions.swift in Sources */,
 				B22671EE2C245802006D8ADF /* HelperToolProtocol.swift in Sources */,
+				B2962C8B2C6890B200474ED6 /* Version.swift in Sources */,
 				B2C0EC1A2C1AB14200132B38 /* AppState.swift in Sources */,
 				B22648D02C29CAFB00A54ADB /* UniversalAppsView.swift in Sources */,
 				B2BABC312C240E37009AAF01 /* PermissionsManager.swift in Sources */,
 				B2BABC2F2C240E13009AAF01 /* FileOperationsManager.swift in Sources */,
+				B2962C892C688F9E00474ED6 /* Common.swift in Sources */,
 				B22648CC2C29B5AA00A54ADB /* BatchProcessing.swift in Sources */,
 				B2C0EC3D2C1AF49A00132B38 /* AppProcessingView.swift in Sources */,
 				B249E79F2C22C8CD002822CA /* LanguageCleaner.swift in Sources */,
@@ -416,7 +385,7 @@
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = YES;
 				CODE_SIGN_STYLE = Manual;
 				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
-				CURRENT_PROJECT_VERSION = 1.1.0;
+				CURRENT_PROJECT_VERSION = release;
 				DEVELOPMENT_TEAM = "";
 				DONT_GENERATE_INFOPLIST_FILE = NO;
 				EAGER_LINKING = NO;
@@ -429,6 +398,7 @@
 				INFOPLIST_PREPROCESS = NO;
 				LAUNCHD_PLIST_PATH = "$(SRCROOT)/archify/archifyhelper/com.oct4pie.archifyhelper.plist";
 				MACOSX_DEPLOYMENT_TARGET = 11.0;
+				MARKETING_VERSION = 1.30;
 				OTHER_LDFLAGS = (
 					"-sectcreate",
 					__TEXT,
@@ -455,7 +425,7 @@
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = YES;
 				CODE_SIGN_STYLE = Manual;
 				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
-				CURRENT_PROJECT_VERSION = 1.1.0;
+				CURRENT_PROJECT_VERSION = release;
 				DEVELOPMENT_TEAM = "";
 				DONT_GENERATE_INFOPLIST_FILE = NO;
 				EAGER_LINKING = NO;
@@ -468,6 +438,7 @@
 				INFOPLIST_PREPROCESS = NO;
 				LAUNCHD_PLIST_PATH = "$(SRCROOT)/archify/archifyhelper/com.oct4pie.archifyhelper.plist";
 				MACOSX_DEPLOYMENT_TARGET = 11.0;
+				MARKETING_VERSION = 1.30;
 				OTHER_LDFLAGS = (
 					"-sectcreate",
 					__TEXT,
@@ -616,8 +587,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Oct4pie Team";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"archify/Preview Content\"";
+				CURRENT_PROJECT_VERSION = release;
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = "";
 				ENABLE_PREVIEWS = YES;
@@ -633,7 +603,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 11.0;
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.3.0;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.oct4pie.archify;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -655,8 +625,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Oct4pie Team";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"archify/Preview Content\"";
+				CURRENT_PROJECT_VERSION = release;
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = "";
 				ENABLE_PREVIEWS = YES;
@@ -672,7 +641,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 11.0;
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.3.0;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.oct4pie.archify;
 				PRODUCT_NAME = "$(TARGET_NAME)";

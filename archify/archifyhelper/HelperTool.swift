@@ -97,8 +97,7 @@ class HelperTool: NSObject, NSXPCListenerDelegate, HelperToolProtocol {
                 }
             } else {
                 NSLog("File does not exist at path: \(expandedPath)")
-                hasAccess = false
-                break
+                // do not change hasAccess if the file doesn't exist
             }
         }
         
@@ -110,4 +109,5 @@ class HelperTool: NSObject, NSXPCListenerDelegate, HelperToolProtocol {
             NSLog("Full disk access not granted.")
         }
     }
+
 }

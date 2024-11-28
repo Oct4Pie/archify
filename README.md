@@ -19,20 +19,6 @@ To install Archify, follow these steps:
 2. Download the latest release of Archify.
 3. Once downloaded, open the dmg or zip file and optionally move the Archify app to your Applications folder.
 
-### Opening the App
-
-When you try to open the app for the first time, macOS Gatekeeper might block it since it's downloaded from the internet. Follow these steps to bypass Gatekeeper:
-
-1. Locate the Archify app in your Applications folder.
-2. Right-click (or control-click) on the app and select "Open".
-3. A warning dialog will appear, asking if you're sure you want to open it. Click "Open" to confirm.
-
-Alternatively, you can permanently allow the app using the System Preferences:
-
-1. Open **System Preferences** and go to **Security & Privacy**.
-2. Under the **General** tab, you will see a message that Archify was blocked. Click the "Open Anyway" button.
-3. Confirm by clicking "Open" in the subsequent dialog.
-
 ## App Usage
 <img width="1200" alt="appusage.png" src="https://github.com/user-attachments/assets/ded275d6-fe97-42d4-a54e-d78ca84fc533">
 
@@ -126,6 +112,13 @@ The apps I have generated so far work without any issues. If the app crashes, tr
 
 ## Changelog
 
+
+### Version 1.4.0
+- Added a Developer Certificate to fix an xpc vulnerability
+- Helper tool stability
+- Full Disk Access Manager added
+- Optimizations, formatting, and bug fixes
+
 ### Version 1.3.0
 - Performance enhancing
 - Full Disk Access issues fixed
@@ -153,10 +146,6 @@ The apps I have generated so far work without any issues. If the app crashes, tr
 ### Version 1.0.0
 
 - Initial release of Archify as a python script with single app processing, architecture size calculations, ldid signing
-
-## To-Do
-- Persist app states throughout navigation
-- Account apps linked into `/Applications` from the `/System` volumes
 
 ## License
 

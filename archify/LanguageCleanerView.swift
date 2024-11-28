@@ -10,7 +10,7 @@ import Combine
 
 struct LanguageCleanerView: View {
     @EnvironmentObject var viewModel: LanguageCleaner
-
+    
     var body: some View {
         VStack {
             ScrollView {
@@ -31,10 +31,10 @@ struct LanguageCleanerView: View {
                     }
                 }.padding()
             }
-        
+            
         }.background(Color(NSColor.windowBackgroundColor))
     }
-
+    
     @ViewBuilder
     private var scanningView: some View {
         VStack {
@@ -55,7 +55,7 @@ struct LanguageCleanerView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-
+    
     @ViewBuilder
     private var removingView: some View {
         VStack {
@@ -76,7 +76,7 @@ struct LanguageCleanerView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-
+    
     @ViewBuilder
     private var content: some View {
         HStack(alignment: .top) {
@@ -86,7 +86,7 @@ struct LanguageCleanerView: View {
                     .frame(minHeight: 500)
             }
             .frame(maxWidth: 200)
-
+            
             VStack {
                 searchBar
                 appsList
@@ -96,12 +96,12 @@ struct LanguageCleanerView: View {
         }
         .padding()
         .background(RoundedRectangle(cornerRadius: 10)
-                        .fill(Color(NSColor.controlBackgroundColor))
-                        .shadow(radius: 2))
+            .fill(Color(NSColor.controlBackgroundColor))
+            .shadow(radius: 2))
         controlButtons
             .padding(.top)
     }
-
+    
     @ViewBuilder
     private var selectAllButton: some View {
         Button(action: {
@@ -117,7 +117,7 @@ struct LanguageCleanerView: View {
         .cornerRadius(8)
         .padding(.vertical, 10)
     }
-
+    
     @ViewBuilder
     private var uniqueLanguagesList: some View {
         List {
@@ -142,7 +142,7 @@ struct LanguageCleanerView: View {
         }
         .listStyle(PlainListStyle())
     }
-
+    
     @ViewBuilder
     private var appsList: some View {
         ScrollView {
@@ -169,7 +169,7 @@ struct LanguageCleanerView: View {
                                 .padding(.horizontal, 5)
                             }
                             .buttonStyle(PlainButtonStyle())
-
+                            
                             ForEach(app.languages, id: \.self) { language in
                                 HStack {
                                     Text(language)
@@ -200,7 +200,7 @@ struct LanguageCleanerView: View {
         }
         .background(Color(NSColor.controlBackgroundColor))
     }
-
+    
     @ViewBuilder
     private var searchBar: some View {
         HStack {
@@ -214,7 +214,7 @@ struct LanguageCleanerView: View {
         }
         .padding(.vertical)
     }
-
+    
     @ViewBuilder
     private var controlButtons: some View {
         HStack(spacing: 10) {
@@ -227,23 +227,23 @@ struct LanguageCleanerView: View {
                 .padding(.horizontal, 25)
                 .padding(.vertical, 7)
                 .background(Color.blue)
-
+                
             }
             .buttonStyle(LinkButtonStyle())
             .foregroundColor(.white)
             .cornerRadius(8)
-
+            
             Button(action: {
                 viewModel.removeSelected()
             }) {
-
-                    
+                
+                
                 VStack {
                     Text("Remove Selected")
                         .padding(.vertical, 5)
                         .padding(.horizontal, 25)
                 }
-           
+                
             }
             .background(viewModel.isRemoveButtonEnabled ? Color.red : Color.gray)
             .foregroundColor(.white)
@@ -253,7 +253,7 @@ struct LanguageCleanerView: View {
         }
         .padding(.horizontal)
     }
-
+    
     @ViewBuilder
     private var removedFilesLog: some View {
         VStack(alignment: .leading) {
@@ -266,7 +266,7 @@ struct LanguageCleanerView: View {
             }
             .frame(maxHeight: 250)
             .background(RoundedRectangle(cornerRadius: 8)
-                            .fill(Color(NSColor.textBackgroundColor)))
+                .fill(Color(NSColor.textBackgroundColor)))
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(Color.gray, lineWidth: 1)

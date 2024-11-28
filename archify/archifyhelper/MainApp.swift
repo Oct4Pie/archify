@@ -11,12 +11,12 @@ func removeFile(atPath path: String) {
     let connection = NSXPCConnection(machServiceName: "com.oct4pie.archifyhelper", options: .privileged)
     connection.remoteObjectInterface = NSXPCInterface(with: HelperToolProtocol.self)
     connection.resume()
-
+    
     NSLog("Attempting to connect to helper tool.")
     let helper = connection.remoteObjectProxyWithErrorHandler { error in
         NSLog("Failed to connect to helper tool: \(error)")
     } as? HelperToolProtocol
-
+    
     helper?.removeFile(atPath: path, withReply: { success, errorString in
         if success {
             NSLog("File removed successfully.")
@@ -35,15 +35,15 @@ func extractAndSignBinaries(in dir: String, targetArch: String, noSign: Bool, no
     let connection = NSXPCConnection(machServiceName: "com.oct4pie.archifyhelper", options: .privileged)
     connection.remoteObjectInterface = NSXPCInterface(with: HelperToolProtocol.self)
     connection.resume()
-
+    
     NSLog("Attempting to connect to helper tool.")
     let helper = connection.remoteObjectProxyWithErrorHandler { error in
         NSLog("Failed to connect to helper tool: \(error)")
         completion(false)
     } as? HelperToolProtocol
-
+    
     let appStateDict = appState.toDictionary()
-
+    
     helper?.extractAndSignBinaries(in: dir, targetArch: targetArch, noSign: noSign, noEntitlements: noEntitlements, appStateDict: appStateDict, withReply: { success, errorString in
         if success {
             NSLog("Binaries extracted and signed successfully.")

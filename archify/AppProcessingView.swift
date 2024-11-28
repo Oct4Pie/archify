@@ -11,7 +11,7 @@ struct AppProcessingView: View {
     @EnvironmentObject var appState: AppState
     @State private var showAlert = false
     @State private var isHoveringProcess = false
-
+    
     var body: some View {
         ZStack {
             Color(NSColor.windowBackgroundColor).edgesIgnoringSafeArea(.all)
@@ -40,9 +40,9 @@ struct AppProcessingView: View {
             )
         }
     }
-
+    
     // MARK: - Sections
-
+    
     var headerSection: some View {
         VStack(spacing: 10) {
             Image(systemName: "gearshape.2.fill")
@@ -61,7 +61,7 @@ struct AppProcessingView: View {
         .cornerRadius(15)
         .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
     }
-
+    
     var configurationSection: some View {
         VStack(spacing: 20) {
             inputOutputSection
@@ -73,18 +73,18 @@ struct AppProcessingView: View {
         .cornerRadius(15)
         .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
     }
-
+    
     var actionSection: some View {
         processButton
     }
-
+    
     var inputOutputSection: some View {
         VStack(spacing: 20) {
             fileSelectionView(title: "Input App", systemImage: "folder.fill", path: $appState.inputDir, canChooseFiles: true)
             fileSelectionView(title: "Output Location", systemImage: "folder.badge.plus", path: $appState.outputDir, canChooseFiles: false)
         }
     }
-
+    
     func fileSelectionView(title: String, systemImage: String, path: Binding<String>, canChooseFiles: Bool) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Label(title, systemImage: systemImage)
@@ -102,7 +102,7 @@ struct AppProcessingView: View {
             }
         }
     }
-
+    
     var architectureSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Target Architecture")
@@ -118,7 +118,7 @@ struct AppProcessingView: View {
             }
         }
     }
-
+    
     var signingSection: some View {
         VStack(alignment: .leading, spacing: 15) {
             Text("Signing Options")
@@ -126,7 +126,7 @@ struct AppProcessingView: View {
             signingOptions
         }
     }
-
+    
     var signingOptions: some View {
         Group {
             Toggle("Sign binaries with ldid", isOn: $appState.useLDID)
@@ -147,7 +147,7 @@ struct AppProcessingView: View {
             Toggle("Launch app (cache)", isOn: $appState.launchSign)
         }
     }
-
+    
     var ldidOptions: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -168,7 +168,7 @@ struct AppProcessingView: View {
                 .padding(.leading, 20)
         }
     }
-
+    
     var processButton: some View {
         Button(action: startProcessing) {
             HStack {
@@ -192,7 +192,7 @@ struct AppProcessingView: View {
         }
         .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 3)
     }
-
+    
     var progressSection: some View {
         VStack(spacing: 20) {
             ProgressView()
@@ -200,13 +200,13 @@ struct AppProcessingView: View {
             Text("Processing...")
                 .font(.headline)
         }.padding(.vertical, 30)
-        .frame(maxWidth: .infinity)
-        .background(Color(NSColor.controlBackgroundColor))
-        .cornerRadius(15)
-        .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
+            .frame(maxWidth: .infinity)
+            .background(Color(NSColor.controlBackgroundColor))
+            .cornerRadius(15)
+            .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
         
     }
-
+    
     var resultsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Results")
@@ -230,7 +230,7 @@ struct AppProcessingView: View {
         .cornerRadius(15)
         .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
     }
-
+    
     var logSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Log")
@@ -250,13 +250,13 @@ struct AppProcessingView: View {
         .cornerRadius(15)
         .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
     }
-
+    
     // MARK: - Logic
-
+    
     var hasResults: Bool {
         appState.initialAppSize != 0 || appState.finalAppSize != 0
     }
-
+    
     func startProcessing() {
         if appState.useLDID && appState.ldidPath.isEmpty {
             showAlert = true
@@ -268,7 +268,7 @@ struct AppProcessingView: View {
             appState.processApp()
         }
     }
-
+    
     func openPanel(canChooseFiles: Bool, canChooseDirectories: Bool) -> URL? {
         let dialog = NSOpenPanel()
         dialog.title = "Choose a directory or file"
@@ -276,7 +276,7 @@ struct AppProcessingView: View {
         dialog.canChooseFiles = canChooseFiles
         dialog.allowsMultipleSelection = false
         dialog.allowedContentTypes = [.application]
-
+        
         if dialog.runModal() == .OK {
             return dialog.url
         }

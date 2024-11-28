@@ -2,19 +2,19 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CFBundleExecutable</key>
-	<string>com.oct4pie.archifyhelper</string>
-	<key>CFBundleIdentifier</key>
-	<string>com.oct4pie.archifyhelper</string>
-	<key>CFBundleName</key>
-	<string>Archify Helper</string>
-	<key>CFBundleInfoDictionaryVersion</key>
-	<string>6.0</string>
-	<key>CFBundleShortVersionString</key>
-	<string>6.0</string>
+<key>MachServices</key>
+	<dict>
+		<key>com.oct4pie.archifyhelper</key>
+		<true/>
+	</dict>
 	<key>SMAuthorizedClients</key>
 	<array>
-		<string>identifier &quot;com.oct4pie.archify&quot; and certificate root = H&quot;774f76d43737aa8e4665811ff668e961a39fc7a0&quot;</string>
+		<string>identifier &quot;com.oct4pie.archify&quot; and anchor apple generic and certificate leaf[subject.CN] = &quot;Apple Distribution: Mehdi Hajmollaahmad Naraghi (9827C97648)&quot; and certificate 1[field.1.2.840.113635.100.6.2.1] /* exists */</string>
 	</array>
+	<key>CFBundleShortVersionString</key>
+<string>6.1</string>
+<key>CFBundleVersion</key>
+<string>6.1</string>
+
 </dict>
 </plist>

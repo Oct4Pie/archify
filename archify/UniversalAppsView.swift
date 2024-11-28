@@ -19,7 +19,7 @@ struct AppInfo: Identifiable {
 struct UniversalAppsView: View {
     @EnvironmentObject var viewModel: UniversalAppsViewModel
     @State private var selectedApp: AppInfo? = nil
-
+    
     var body: some View {
         VStack(spacing: 0) {
             headerSection
@@ -338,7 +338,7 @@ class UniversalAppsViewModel: ObservableObject {
     @Published var sortOrder: SortOrder = .nameAscending
     @Published var selectedType: AppType = .all
     private var hasLoaded: Bool = false
-
+    
     func loadApps() {
         guard !hasLoaded else { return }
         isLoading = true
@@ -350,7 +350,7 @@ class UniversalAppsViewModel: ObservableObject {
             }
         }
     }
-
+    
     func reloadApps() {
         isLoading = true
         UniversalApps.shared.findApps { loadedApps in
@@ -360,7 +360,7 @@ class UniversalAppsViewModel: ObservableObject {
             }
         }
     }
-
+    
     enum SortOrder: CustomStringConvertible {
         case nameAscending, nameDescending, type
         
@@ -375,7 +375,7 @@ class UniversalAppsViewModel: ObservableObject {
             }
         }
     }
-
+    
     enum AppType: String, CaseIterable {
         case all, universal, native, other
     }

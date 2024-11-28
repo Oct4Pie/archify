@@ -10,9 +10,9 @@ import AppKit
 
 class FileOperationsManager {
     static let shared = FileOperationsManager()
-
+    
     private init() {}
-
+    
     func removeFile(atPath path: String, completion: @escaping (Bool, String?) -> Void) {
         do {
             try FileManager.default.removeItem(atPath: path)
@@ -21,11 +21,11 @@ class FileOperationsManager {
             completion(false, error.localizedDescription)
         }
     }
-
+    
     func removeFiles(paths: [String], progressUpdate: @escaping (Double) -> Void, completion: @escaping (Bool, String?) -> Void) {
         let totalCount = paths.count
         var removedCount = 0
-
+        
         DispatchQueue.global(qos: .background).async {
             for path in paths {
                 self.removeFile(atPath: path) { success, error in
@@ -40,7 +40,7 @@ class FileOperationsManager {
                     }
                 }
             }
-
+            
             DispatchQueue.main.async {
                 completion(true, nil)
             }

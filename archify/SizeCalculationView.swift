@@ -1,3 +1,10 @@
+//
+//  SizeCalculationView.swift
+//  archify
+//
+//  Created by oct4pie on 6/20/24.
+//
+
 import SwiftUI
 
 struct SizeCalculationView: View {
@@ -6,7 +13,7 @@ struct SizeCalculationView: View {
     @State private var selectedTab = 0
     @State private var showingInfoPopover = false
     @State private var scrollProxy: ScrollViewProxy?
-
+    
     var body: some View {
         ZStack {
             Color(NSColor.windowBackgroundColor).edgesIgnoringSafeArea(.all)
@@ -64,7 +71,7 @@ struct SizeCalculationView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-
+    
     var headerSection: some View {
         HStack(spacing: 15) {
             Image(systemName: "archivebox.fill")
@@ -104,7 +111,7 @@ struct SizeCalculationView: View {
         .cornerRadius(15)
         .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
     }
-
+    
     var appSelectionSection: some View {
         VStack(alignment: .leading, spacing: 15) {
             Text("Select Applications")
@@ -163,7 +170,7 @@ struct SizeCalculationView: View {
         .cornerRadius(15)
         .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
     }
-
+    
     var configurationSection: some View {
         HStack {
             VStack(alignment: .leading, spacing: 15) {
@@ -189,7 +196,7 @@ struct SizeCalculationView: View {
         }.padding()
         
     }
-
+    
     var calculateButton: some View {
         Button(action: {
             sizeCalculation.calculateUnneededArchSizes()
@@ -219,7 +226,7 @@ struct SizeCalculationView: View {
         .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 3)
         
     }
-
+    
     var progressSection: some View {
         VStack(spacing: 10) {
             ProgressView(value: sizeCalculation.progress, total: 1.0)
@@ -233,7 +240,7 @@ struct SizeCalculationView: View {
         .cornerRadius(15)
         .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
     }
-
+    
     var resultsSection: some View {
         VStack(alignment: .leading, spacing: 15) {
             Text("Results")
@@ -269,7 +276,7 @@ struct SizeCalculationView: View {
         .cornerRadius(15)
         .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
     }
-
+    
     func selectApps() {
         if let urls = sizeCalculation.openPanel(
             canChooseFiles: true, canChooseDirectories: true, allowsMultipleSelection: true)
@@ -277,7 +284,7 @@ struct SizeCalculationView: View {
             sizeCalculation.selectedAppPaths = urls.map { $0.path }
         }
     }
-
+    
     func removeApp(_ app: String) {
         sizeCalculation.selectedAppPaths.removeAll { $0 == app }
     }

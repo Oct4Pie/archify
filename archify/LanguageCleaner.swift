@@ -29,7 +29,7 @@ class LanguageCleaner: ObservableObject {
     @Published var removedFilesLog: String = ""
     @Published var currentlyScanningApp: String = ""
     @Published var currentlyRemovingFile: String = ""
-
+    
     var filteredApps: [AppLanguage] {
         if searchText.isEmpty {
             return apps
@@ -37,33 +37,33 @@ class LanguageCleaner: ObservableObject {
             return apps.filter { $0.appName.lowercased().contains(searchText.lowercased()) }
         }
     }
-
+    
     var isAllLanguagesSelected: Bool {
         let selectableLanguages = uniqueLanguages.filter { !shouldGrayOutLanguage($0) }
         return selectedLanguages.count == selectableLanguages.count
     }
-
+    
     var isRemoveButtonEnabled: Bool {
         return !selectedLanguages.isEmpty || apps.contains(where: { !$0.selectedLanguages.isEmpty })
     }
-
+    
     func isAllLanguagesSelected(in app: AppLanguage) -> Bool {
         let selectableLanguages = app.languages.filter { !shouldGrayOutLanguage($0) }
         return app.selectedLanguages.count == selectableLanguages.count
     }
-
+    
     func isLanguageSelectedInApp(_ language: String, app: AppLanguage) -> Bool {
         return app.selectedLanguages.contains(language) || selectedLanguages.contains(language)
     }
-
+    
     func shouldGrayOutLanguage(_ language: String) -> Bool {
         return language == "Base"
     }
-
+    
     func getApplicationFolderCount() -> Int {
         let fileManager = FileManager.default
         let applicationPath = "/Applications"
-
+        
         do {
             let contents = try fileManager.contentsOfDirectory(atPath: applicationPath)
             let folderCount = contents.filter { item in
@@ -77,26 +77,26 @@ class LanguageCleaner: ObservableObject {
             return 0
         }
     }
-
+    
     func scanForAppsAndLanguages() {
         isScanning = true
         progress = 0.0
-        let fileManager = FileManager.default
         let applicationPath = "/Applications"
-        let defaultMacOSApps = defaultMacOSApps() // Use the function to get default apps
+        let defaultMacOSApps = defaultMacOSApps()
         var tempApps: [AppLanguage] = []
         var allLanguages: Set<String> = []
-        var appLanguages: [String: [String: [String]]] = [:] // Maps app names to a dictionary of language names and their paths
+        var appLanguages: [String: [String: [String]]] = [:]
         let totalCount = getApplicationFolderCount()
         var processedCount = 0
-
+        
         DispatchQueue.global(qos: .background).async {
             do {
-                let contents = try fileManager.contentsOfDirectory(atPath: applicationPath)
+                let localFileManager = FileManager.default
+                let contents = try localFileManager.contentsOfDirectory(atPath: applicationPath)
                 for item in contents {
                     let fullPath = (applicationPath as NSString).appendingPathComponent(item)
                     var isDir: ObjCBool = false
-                    if fileManager.fileExists(atPath: fullPath, isDirectory: &isDir), isDir.boolValue {
+                    if localFileManager.fileExists(atPath: fullPath, isDirectory: &isDir), isDir.boolValue {
                         processedCount += 1
                         let appName = item
                         // Skip the app if it's in the default MacOS apps set
@@ -109,7 +109,7 @@ class LanguageCleaner: ObservableObject {
                         if appLanguages[appName] == nil {
                             appLanguages[appName] = [:]
                         }
-                        if let enumerator = fileManager.enumerator(atPath: fullPath) {
+                        if let enumerator = localFileManager.enumerator(atPath: fullPath) {
                             for case let path as String in enumerator {
                                 if path.hasSuffix(".lproj") {
                                     let language = (path as NSString).lastPathComponent.replacingOccurrences(of: ".lproj", with: "")
@@ -129,11 +129,11 @@ class LanguageCleaner: ObservableObject {
             } catch {
                 print("Failed to scan /Applications: \(error.localizedDescription)")
             }
-
+            
             for (appName, languages) in appLanguages {
                 tempApps.append(AppLanguage(appName: appName, languages: Array(languages.keys).sorted(), languagePaths: languages.mapValues { $0 }))
             }
-
+            
             DispatchQueue.main.async {
                 self.apps = tempApps
                 self.uniqueLanguages = Array(allLanguages).sorted()
@@ -144,11 +144,11 @@ class LanguageCleaner: ObservableObject {
             }
         }
     }
-
+    
     func removeSelected() {
         var pathsToRemove: [(appIndex: Int, language: String, path: String)] = []
         var removedFiles: [String] = []
-
+        
         for (appIndex, app) in apps.enumerated() {
             for language in app.languages {
                 if app.selectedLanguages.contains(language) || selectedLanguages.contains(language) {
@@ -158,21 +158,21 @@ class LanguageCleaner: ObservableObject {
                 }
             }
         }
-
+        
         guard HelperToolManager.shared.isHelperToolInstalled() || HelperToolManager.shared.blessHelperTool() else {
             print("Failed to install helper tool.")
             return
         }
-
+        
         let totalCount = pathsToRemove.count
         var removedCount = 0
-
+        
         isRemoving = true
         progress = 0.0
-
+        
         DispatchQueue.global(qos: .background).async {
             let group = DispatchGroup()
-
+            
             for (appIndex, language, path) in pathsToRemove {
                 group.enter()
                 DispatchQueue.main.async {
@@ -198,7 +198,7 @@ class LanguageCleaner: ObservableObject {
                     group.leave()
                 }
             }
-
+            
             group.notify(queue: .main) {
                 self.isRemoving = false
                 self.progress = 1.0
@@ -207,7 +207,7 @@ class LanguageCleaner: ObservableObject {
             }
         }
     }
-
+    
     func toggleApp(_ appId: UUID) {
         if selectedApps.contains(appId) {
             selectedApps.remove(appId)
@@ -215,7 +215,7 @@ class LanguageCleaner: ObservableObject {
             selectedApps.insert(appId)
         }
     }
-
+    
     func toggleLanguageInApp(_ language: String, app: AppLanguage) {
         if let appIndex = apps.firstIndex(where: { $0.id == app.id }) {
             if apps[appIndex].selectedLanguages.contains(language) {
@@ -226,7 +226,7 @@ class LanguageCleaner: ObservableObject {
             objectWillChange.send() // Notify the view about the change
         }
     }
-
+    
     func toggleGlobalLanguage(_ language: String) {
         if shouldGrayOutLanguage(language) {
             return
@@ -245,7 +245,7 @@ class LanguageCleaner: ObservableObject {
             }
         }
     }
-
+    
     func toggleSelectAllLanguages() {
         if isAllLanguagesSelected {
             selectedLanguages.removeAll()
@@ -261,7 +261,7 @@ class LanguageCleaner: ObservableObject {
             }
         }
     }
-
+    
     func toggleSelectAllLanguages(in app: AppLanguage) {
         if let appIndex = apps.firstIndex(where: { $0.id == app.id }) {
             if isAllLanguagesSelected(in: apps[appIndex]) {

@@ -23,14 +23,14 @@
 		B249E7AE2C23D969002822CA /* HelperTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = B249E7AD2C23D969002822CA /* HelperTool.swift */; };
 		B249E7B02C23D984002822CA /* HelperToolProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = B249E7AF2C23D984002822CA /* HelperToolProtocol.swift */; };
 		B249E7B22C23DADF002822CA /* MainApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B249E7B12C23DADF002822CA /* MainApp.swift */; };
-		B249E7BA2C23E219002822CA /* HelperTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = B249E7B92C23E219002822CA /* HelperTool.swift */; };
+		B249E7BA2C23E219002822CA /* HelperToolManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B249E7B92C23E219002822CA /* HelperToolManager.swift */; };
 		B249E7C12C23E787002822CA /* com.oct4pie.archifyhelper.plist in CopyFiles */ = {isa = PBXBuildFile; fileRef = B249E7B42C23DCDB002822CA /* com.oct4pie.archifyhelper.plist */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		B2962C872C688EA000474ED6 /* ldid in Resources */ = {isa = PBXBuildFile; fileRef = B2962C862C688EA000474ED6 /* ldid */; };
+		B27668982CF147D000904E4E /* FullDiskAccessManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B27668972CF147CE00904E4E /* FullDiskAccessManager.swift */; };
 		B2962C892C688F9E00474ED6 /* Common.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2962C882C688F9E00474ED6 /* Common.swift */; };
 		B2962C8B2C6890B200474ED6 /* Version.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2962C8A2C6890B200474ED6 /* Version.swift */; };
 		B2962D562C68920800474ED6 /* Version.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2962D552C68920800474ED6 /* Version.swift */; };
+		B2A1024F2CF5B0FA00B32345 /* ldid in Resources */ = {isa = PBXBuildFile; fileRef = B2A1024E2CF5B0FA00B32345 /* ldid */; };
 		B2BABC2F2C240E13009AAF01 /* FileOperationsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2BABC2E2C240E13009AAF01 /* FileOperationsManager.swift */; };
-		B2BABC312C240E37009AAF01 /* PermissionsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2BABC302C240E37009AAF01 /* PermissionsManager.swift */; };
 		B2BABC322C242BDF009AAF01 /* com.oct4pie.archifyhelper in CopyFiles */ = {isa = PBXBuildFile; fileRef = B249E7A62C23D8FA002822CA /* com.oct4pie.archifyhelper */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		B2C0EBEF2C1AB05300132B38 /* archifyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C0EBEE2C1AB05300132B38 /* archifyApp.swift */; };
 		B2C0EBF12C1AB05300132B38 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C0EBF02C1AB05300132B38 /* ContentView.swift */; };
@@ -51,6 +51,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = B249E7A52C23D8FA002822CA;
 			remoteInfo = archifyhelper;
+		};
+		B2A102262CF59DD200B32345 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B2C0EBE32C1AB05300132B38 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B2A102202CF5992D00B32345;
+			remoteInfo = ldid;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -118,13 +125,17 @@
 		B249E7AF2C23D984002822CA /* HelperToolProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelperToolProtocol.swift; sourceTree = "<group>"; };
 		B249E7B12C23DADF002822CA /* MainApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainApp.swift; sourceTree = "<group>"; };
 		B249E7B42C23DCDB002822CA /* com.oct4pie.archifyhelper.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = com.oct4pie.archifyhelper.plist; sourceTree = "<group>"; };
-		B249E7B92C23E219002822CA /* HelperTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelperTool.swift; sourceTree = "<group>"; };
-		B2962C862C688EA000474ED6 /* ldid */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; path = ldid; sourceTree = "<group>"; };
+		B249E7B92C23E219002822CA /* HelperToolManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelperToolManager.swift; sourceTree = "<group>"; };
+		B27668972CF147CE00904E4E /* FullDiskAccessManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullDiskAccessManager.swift; sourceTree = "<group>"; };
 		B2962C882C688F9E00474ED6 /* Common.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Common.swift; sourceTree = "<group>"; };
 		B2962C8A2C6890B200474ED6 /* Version.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Version.swift; sourceTree = "<group>"; };
 		B2962D552C68920800474ED6 /* Version.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = Version.swift; path = archify/Version.swift; sourceTree = SOURCE_ROOT; };
+		B2A102472CF5A95800B32345 /* ldid.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = ldid.hpp; sourceTree = "<group>"; };
+		B2A102492CF5A95800B32345 /* ldid.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ldid.cpp; sourceTree = "<group>"; };
+		B2A1024B2CF5A95800B32345 /* machine.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = machine.h; sourceTree = "<group>"; };
+		B2A1024C2CF5A95800B32345 /* Makefile */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.make; path = Makefile; sourceTree = "<group>"; };
+		B2A1024E2CF5B0FA00B32345 /* ldid */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; path = ldid; sourceTree = "<group>"; };
 		B2BABC2E2C240E13009AAF01 /* FileOperationsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileOperationsManager.swift; sourceTree = "<group>"; };
-		B2BABC302C240E37009AAF01 /* PermissionsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsManager.swift; sourceTree = "<group>"; };
 		B2C0EBEB2C1AB05300132B38 /* archify.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = archify.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B2C0EBEE2C1AB05300132B38 /* archifyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = archifyApp.swift; sourceTree = "<group>"; };
 		B2C0EBF02C1AB05300132B38 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -162,6 +173,7 @@
 			children = (
 				B22671F32C247DCC006D8ADF /* Info.plist */,
 				B22671EB2C244D39006D8ADF /* archifyhelper.entitlements */,
+				B249E7B42C23DCDB002822CA /* com.oct4pie.archifyhelper.plist */,
 				B249E7A82C23D8FA002822CA /* main.swift */,
 				B22672052C26E761006D8ADF /* UniversalApps.swift */,
 				B22672082C26E788006D8ADF /* Extensions.swift */,
@@ -172,15 +184,26 @@
 				B249E7AD2C23D969002822CA /* HelperTool.swift */,
 				B249E7AF2C23D984002822CA /* HelperToolProtocol.swift */,
 				B249E7B12C23DADF002822CA /* MainApp.swift */,
-				B249E7B42C23DCDB002822CA /* com.oct4pie.archifyhelper.plist */,
 			);
 			path = archifyhelper;
+			sourceTree = "<group>";
+		};
+		B2A1024D2CF5A95800B32345 /* ldid */ = {
+			isa = PBXGroup;
+			children = (
+				B2A102472CF5A95800B32345 /* ldid.hpp */,
+				B2A102492CF5A95800B32345 /* ldid.cpp */,
+				B2A1024E2CF5B0FA00B32345 /* ldid */,
+				B2A1024B2CF5A95800B32345 /* machine.h */,
+				B2A1024C2CF5A95800B32345 /* Makefile */,
+			);
+			path = ldid;
 			sourceTree = "<group>";
 		};
 		B2C0EBE22C1AB05300132B38 = {
 			isa = PBXGroup;
 			children = (
-				B2962C862C688EA000474ED6 /* ldid */,
+				B2A1024D2CF5A95800B32345 /* ldid */,
 				B2C0EBED2C1AB05300132B38 /* archify */,
 				B2C0EBEC2C1AB05300132B38 /* Products */,
 			);
@@ -199,6 +222,8 @@
 			isa = PBXGroup;
 			children = (
 				B22671E92C244477006D8ADF /* Info.plist */,
+				B2C0EBF22C1AB05400132B38 /* Assets.xcassets */,
+				B2C0EBF72C1AB05400132B38 /* archify.entitlements */,
 				B2962C882C688F9E00474ED6 /* Common.swift */,
 				B2962C8A2C6890B200474ED6 /* Version.swift */,
 				B2C0EBF02C1AB05300132B38 /* ContentView.swift */,
@@ -208,8 +233,6 @@
 				B2C0EC1F2C1AB1DB00132B38 /* Extensions.swift */,
 				B22671ED2C245802006D8ADF /* HelperToolProtocol.swift */,
 				B2C0EC1D2C1AB1B000132B38 /* Signer.swift */,
-				B2C0EBF22C1AB05400132B38 /* Assets.xcassets */,
-				B2C0EBF72C1AB05400132B38 /* archify.entitlements */,
 				B2C0EC3A2C1AEE5800132B38 /* UniversalApps.swift */,
 				B22648CF2C29CAFB00A54ADB /* UniversalAppsView.swift */,
 				B22671F52C25C9F3006D8ADF /* BatchProcessingView.swift */,
@@ -219,15 +242,34 @@
 				B22648CD2C29B6AF00A54ADB /* SizeCalculation.swift */,
 				B249E79E2C22C8CC002822CA /* LanguageCleaner.swift */,
 				B249E7A02C22C908002822CA /* LanguageCleanerView.swift */,
-				B249E7B92C23E219002822CA /* HelperTool.swift */,
+				B249E7B92C23E219002822CA /* HelperToolManager.swift */,
+				B27668972CF147CE00904E4E /* FullDiskAccessManager.swift */,
 				B2BABC2E2C240E13009AAF01 /* FileOperationsManager.swift */,
-				B2BABC302C240E37009AAF01 /* PermissionsManager.swift */,
 				B249E7A72C23D8FA002822CA /* archifyhelper */,
 			);
 			path = archify;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
+
+/* Begin PBXLegacyTarget section */
+		B2A102202CF5992D00B32345 /* ldid */ = {
+			isa = PBXLegacyTarget;
+			buildArgumentsString = "$(ACTION)";
+			buildConfigurationList = B2A102212CF5992D00B32345 /* Build configuration list for PBXLegacyTarget "ldid" */;
+			buildPhases = (
+			);
+			buildToolPath = /usr/bin/make;
+			buildWorkingDirectory = ldid;
+			dependencies = (
+			);
+			name = ldid;
+			packageProductDependencies = (
+			);
+			passBuildSettingsInEnvironment = 1;
+			productName = ldid;
+		};
+/* End PBXLegacyTarget section */
 
 /* Begin PBXNativeTarget section */
 		B249E7A52C23D8FA002822CA /* com.oct4pie.archifyhelper */ = {
@@ -261,6 +303,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				B2A102272CF59DD200B32345 /* PBXTargetDependency */,
 				B249E7BC2C23E66A002822CA /* PBXTargetDependency */,
 			);
 			name = archify;
@@ -276,13 +319,18 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1540;
-				LastUpgradeCheck = 1540;
+				LastUpgradeCheck = 1610;
 				TargetAttributes = {
 					B249E7A52C23D8FA002822CA = {
 						CreatedOnToolsVersion = 15.4;
+						LastSwiftMigration = 1610;
+					};
+					B2A102202CF5992D00B32345 = {
+						CreatedOnToolsVersion = 16.1;
 					};
 					B2C0EBEA2C1AB05300132B38 = {
 						CreatedOnToolsVersion = 15.4;
+						LastSwiftMigration = 1610;
 					};
 				};
 			};
@@ -301,6 +349,7 @@
 			targets = (
 				B2C0EBEA2C1AB05300132B38 /* archify */,
 				B249E7A52C23D8FA002822CA /* com.oct4pie.archifyhelper */,
+				B2A102202CF5992D00B32345 /* ldid */,
 			);
 		};
 /* End PBXProject section */
@@ -310,7 +359,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				B2962C872C688EA000474ED6 /* ldid in Resources */,
+				B2A1024F2CF5B0FA00B32345 /* ldid in Resources */,
 				B2C0EBF32C1AB05400132B38 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -340,16 +389,16 @@
 			buildActionMask = 2147483647;
 			files = (
 				B2C0EC1E2C1AB1B000132B38 /* Signer.swift in Sources */,
-				B249E7BA2C23E219002822CA /* HelperTool.swift in Sources */,
+				B249E7BA2C23E219002822CA /* HelperToolManager.swift in Sources */,
 				B2C0EC202C1AB1DB00132B38 /* Extensions.swift in Sources */,
 				B22671EE2C245802006D8ADF /* HelperToolProtocol.swift in Sources */,
 				B2962C8B2C6890B200474ED6 /* Version.swift in Sources */,
 				B2C0EC1A2C1AB14200132B38 /* AppState.swift in Sources */,
 				B22648D02C29CAFB00A54ADB /* UniversalAppsView.swift in Sources */,
-				B2BABC312C240E37009AAF01 /* PermissionsManager.swift in Sources */,
 				B2BABC2F2C240E13009AAF01 /* FileOperationsManager.swift in Sources */,
 				B2962C892C688F9E00474ED6 /* Common.swift in Sources */,
 				B22648CC2C29B5AA00A54ADB /* BatchProcessing.swift in Sources */,
+				B27668982CF147D000904E4E /* FullDiskAccessManager.swift in Sources */,
 				B2C0EC3D2C1AF49A00132B38 /* AppProcessingView.swift in Sources */,
 				B249E79F2C22C8CD002822CA /* LanguageCleaner.swift in Sources */,
 				B2C0EBF12C1AB05300132B38 /* ContentView.swift in Sources */,
@@ -371,6 +420,11 @@
 			target = B249E7A52C23D8FA002822CA /* com.oct4pie.archifyhelper */;
 			targetProxy = B249E7BB2C23E66A002822CA /* PBXContainerItemProxy */;
 		};
+		B2A102272CF59DD200B32345 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B2A102202CF5992D00B32345 /* ldid */;
+			targetProxy = B2A102262CF59DD200B32345 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
@@ -379,24 +433,30 @@
 			buildSettings = {
 				APPLY_RULES_IN_COPY_FILES = NO;
 				ARCHS = "$(ARCHS_STANDARD)";
-				CODE_SIGN_ENTITLEMENTS = archifyhelper/archifyhelper.entitlements;
-				CODE_SIGN_IDENTITY = "Oct4pie Team";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Oct4pie Team";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_USE_OPTIMIZATION_PROFILE = NO;
+				CODE_SIGN_ENTITLEMENTS = archify/archifyhelper/archifyhelper.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "3rd Party Mac Developer Application";
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = YES;
 				CODE_SIGN_STYLE = Manual;
 				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
 				CURRENT_PROJECT_VERSION = release;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = 9827C97648;
 				DONT_GENERATE_INFOPLIST_FILE = NO;
 				EAGER_LINKING = NO;
-				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GCC_OPTIMIZATION_LEVEL = s;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = archifyhelper/Info.plist;
+				INFOPLIST_FILE = archify/archifyhelper/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Archify Helper";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_OUTPUT_FORMAT = "same-as-input";
 				INFOPLIST_PREPROCESS = NO;
 				LAUNCHD_PLIST_PATH = "$(SRCROOT)/archify/archifyhelper/com.oct4pie.archifyhelper.plist";
+				LLVM_LTO = YES;
 				MACOSX_DEPLOYMENT_TARGET = 11.0;
 				MARKETING_VERSION = 1.30;
 				OTHER_LDFLAGS = (
@@ -404,12 +464,15 @@
 					__TEXT,
 					__launchd_plist,
 					"$(LAUNCHD_PLIST_PATH)",
+					"-flto",
 				);
 				PLIST_FILE_OUTPUT_FORMAT = "same-as-input";
 				PRODUCT_BUNDLE_IDENTIFIER = com.oct4pie.archifyhelper;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
+				SKIP_INSTALL = YES;
 				STRINGS_FILE_INFOPLIST_RENAME = NO;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
@@ -419,24 +482,30 @@
 			buildSettings = {
 				APPLY_RULES_IN_COPY_FILES = NO;
 				ARCHS = "$(ARCHS_STANDARD)";
-				CODE_SIGN_ENTITLEMENTS = archifyhelper/archifyhelper.entitlements;
-				CODE_SIGN_IDENTITY = "Oct4pie Team";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Oct4pie Team";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_USE_OPTIMIZATION_PROFILE = NO;
+				CODE_SIGN_ENTITLEMENTS = archify/archifyhelper/archifyhelper.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "3rd Party Mac Developer Application";
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = YES;
 				CODE_SIGN_STYLE = Manual;
 				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
 				CURRENT_PROJECT_VERSION = release;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = 9827C97648;
 				DONT_GENERATE_INFOPLIST_FILE = NO;
 				EAGER_LINKING = NO;
-				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GCC_OPTIMIZATION_LEVEL = s;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = archifyhelper/Info.plist;
+				INFOPLIST_FILE = archify/archifyhelper/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Archify Helper";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_OUTPUT_FORMAT = "same-as-input";
 				INFOPLIST_PREPROCESS = NO;
 				LAUNCHD_PLIST_PATH = "$(SRCROOT)/archify/archifyhelper/com.oct4pie.archifyhelper.plist";
+				LLVM_LTO = YES;
 				MACOSX_DEPLOYMENT_TARGET = 11.0;
 				MARKETING_VERSION = 1.30;
 				OTHER_LDFLAGS = (
@@ -444,13 +513,40 @@
 					__TEXT,
 					__launchd_plist,
 					"$(LAUNCHD_PLIST_PATH)",
+					"-flto",
 				);
 				PLIST_FILE_OUTPUT_FORMAT = "same-as-input";
 				PRODUCT_BUNDLE_IDENTIFIER = com.oct4pie.archifyhelper;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
+				SKIP_INSTALL = YES;
 				STRINGS_FILE_INFOPLIST_RENAME = NO;
 				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		B2A102222CF5992D00B32345 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEBUGGING_SYMBOLS = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 9827C97648;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				PATH = ":/opt/homebrew/bin:$PATH";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		B2A102232CF5992D00B32345 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 9827C97648;
+				PATH = ":/opt/homebrew/bin:$PATH";
+				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Release;
 		};
@@ -489,6 +585,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -553,6 +650,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -581,15 +679,18 @@
 				ARCHS = "$(ARCHS_STANDARD)";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_MODULES = YES;
 				CLANG_USE_OPTIMIZATION_PROFILE = YES;
 				CODE_SIGN_ENTITLEMENTS = archify/archify.entitlements;
-				CODE_SIGN_IDENTITY = "Oct4pie Team";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Oct4pie Team";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "3rd Party Mac Developer Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = release;
+				CURRENT_PROJECT_VERSION = 1.4.0;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = "";
-				"DEVELOPMENT_TEAM[sdk=macosx*]" = "";
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = 9827C97648;
+				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = archify/Info.plist;
@@ -602,13 +703,16 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 11.0;
-				MARKETING_VERSION = 1.3.0;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MARKETING_VERSION = 1.4.0;
 				ONLY_ACTIVE_ARCH = YES;
+				OTHER_LDFLAGS = "-flto";
 				PRODUCT_BUNDLE_IDENTIFIER = com.oct4pie.archify;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
@@ -619,15 +723,18 @@
 				ARCHS = "$(ARCHS_STANDARD)";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_MODULES = YES;
 				CLANG_USE_OPTIMIZATION_PROFILE = YES;
 				CODE_SIGN_ENTITLEMENTS = archify/archify.entitlements;
-				CODE_SIGN_IDENTITY = "Oct4pie Team";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Oct4pie Team";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "3rd Party Mac Developer Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = release;
+				CURRENT_PROJECT_VERSION = 1.4.0;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = "";
-				"DEVELOPMENT_TEAM[sdk=macosx*]" = "";
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = 9827C97648;
+				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = archify/Info.plist;
@@ -640,12 +747,14 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 11.0;
-				MARKETING_VERSION = 1.3.0;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MARKETING_VERSION = 1.4.0;
 				ONLY_ACTIVE_ARCH = YES;
+				OTHER_LDFLAGS = "-flto";
 				PRODUCT_BUNDLE_IDENTIFIER = com.oct4pie.archify;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -659,6 +768,15 @@
 			buildConfigurations = (
 				B249E7AA2C23D8FA002822CA /* Debug */,
 				B249E7AB2C23D8FA002822CA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B2A102212CF5992D00B32345 /* Build configuration list for PBXLegacyTarget "ldid" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B2A102222CF5992D00B32345 /* Debug */,
+				B2A102232CF5992D00B32345 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

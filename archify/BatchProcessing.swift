@@ -11,6 +11,7 @@ import AppKit
 
 class BatchProcessing: ObservableObject {
     @Published var appSizes: [(String, UInt64, UInt64)] = []  // (app path, total size, savable size)
+    @Published var processedAppSizes: [(String, UInt64, UInt64)] = []  // (app path, total size, savable size)
     @Published var scanningProgress: Double = 0.0
     @Published var processingProgress: Double = 0.0
     @Published var currentApp: String = ""
@@ -22,6 +23,7 @@ class BatchProcessing: ObservableObject {
     @Published var initialTotalSize: UInt64 = 0
     @Published var finalTotalSize: UInt64 = 0
     @Published var savedSpaces: [String: UInt64] = [:]
+    @Published var fdaManager = FullDiskAccessManager.shared
     
     private let appState = AppState()
     private let universalApps = UniversalApps()
@@ -57,7 +59,9 @@ class BatchProcessing: ObservableObject {
         }
     }
     
-    func startProcessingSelectedApps() {
+    func startProcessingSelectedApps(completion: (() -> Void)? = nil) {
+        guard !selectedApps.isEmpty else { return }
+        
         isProcessing = true
         processingProgress = 0.0
         logMessages = ""
@@ -70,6 +74,7 @@ class BatchProcessing: ObservableObject {
         guard HelperToolManager.shared.blessHelperTool() else {
             logMessages += "Failed to install helper tool.\n"
             isProcessing = false
+            completion?()
             return
         }
         
@@ -84,15 +89,18 @@ class BatchProcessing: ObservableObject {
         HelperToolManager.shared.interactWithHelperTool(command: .checkFullDiskAccess) { [weak self] hasAccess, error in
             guard let self = self else { return }
             if hasAccess {
-                self.processApps()
+                self.processApps(completion: completion)
             } else {
-                self.promptForFullDiskAccess()
-                self.isProcessing = false
+                DispatchQueue.main.async {
+                    self.promptForFullDiskAccess()
+                    self.isProcessing = false
+                }
+                completion?()
             }
         }
     }
     
-    private func processApps() {
+    private func processApps(completion: (() -> Void)? = nil) {
         let totalApps = selectedApps.count
         var processedApps = 0
         
@@ -101,32 +109,48 @@ class BatchProcessing: ObservableObject {
                 self.currentApp = URL(fileURLWithPath: app).lastPathComponent
             }
             
-            guard let appInfo = appSizes.first(where: { $0.0 == app }) else { continue }
+            guard let appInfo = appSizes.first(where: { $0.0 == app }) else {
+                processedApps += 1
+                self.processingProgress = Double(processedApps) / Double(totalApps)
+                continue
+            }
             let originalSize = appInfo.1
             let expectedSavableSize = appInfo.2
             
             let appStateDict = self.appState.toDictionary()
             HelperToolManager.shared.interactWithHelperTool(command: .extractAndSignBinaries(dir: app, targetArch: self.systemArchitecture(), noSign: true, noEntitlements: true, appStateDict: appStateDict)) { success, errorString in
                 DispatchQueue.main.async {
-                    processedApps += 1
-                    self.processingProgress = Double(processedApps) / Double(totalApps)
-                    
                     if success {
                         let newSize = self.calculateDirectorySize(app)
                         let actualSavedSpace = originalSize - newSize
+                        
+                        // Append to processedAppSizes
+                        self.processedAppSizes.append((app, originalSize, actualSavedSpace))
                         
                         self.savedSpaces[app] = actualSavedSpace
                         self.totalSavedSpace += actualSavedSpace
                         self.finalTotalSize -= actualSavedSpace
                         
                         self.logMessages += "Processed \(app) successfully. Saved \(actualSavedSpace.humanReadableSize()) (Expected: \(expectedSavableSize.humanReadableSize()))\n"
+                        
+                        // Remove the app from the appSizes list
+                        if let appIndex = self.appSizes.firstIndex(where: { $0.0 == app }) {
+                            self.appSizes.remove(at: appIndex)
+                        }
+                        
+                        // Also remove from selectedApps
+                        self.selectedApps.remove(app)
                     } else {
                         self.logMessages += "Failed to process \(app): \(errorString ?? "Unknown error")\n"
                     }
                     
+                    processedApps += 1
+                    self.processingProgress = Double(processedApps) / Double(totalApps)
+                    
                     if processedApps == totalApps {
                         self.isProcessing = false
                         self.processStartTime = nil
+                        completion?()
                     }
                 }
             }
@@ -182,25 +206,15 @@ class BatchProcessing: ObservableObject {
     }
     
     private func promptForFullDiskAccess() {
-            DispatchQueue.main.async {
-                let alert = NSAlert()
-                alert.messageText = "Full Disk Access Required"
-                alert.informativeText = """
-                This application requires Full Disk Access to function properly.
-                Please go to System Preferences > Security & Privacy > Privacy > Full Disk Access
-                and check the checkbox for "com.oc4pie".
-                """
-                
-                if let image = NSImage(named: "fullDiskAccess") {
-                    let imageView = NSImageView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
-                    imageView.image = image
-                    imageView.imageScaling = .scaleProportionallyUpOrDown
-                    alert.accessoryView = imageView
-                }
-                
-                alert.alertStyle = .warning
-                alert.addButton(withTitle: "OK")
-                alert.runModal()
-            }
-        }
+        fdaManager.requestFullDiskAccess()
+    }
+}
+
+extension UInt64 {
+    func humanReadableSize() -> String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useMB, .useGB]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: Int64(self))
+    }
 }

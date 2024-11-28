@@ -55,21 +55,6 @@ extension ProcessInfo {
 }
 
 
-extension UInt64 {
-  func humanReadableSize() -> String {
-    let units = ["B", "KB", "MB", "GB", "TB"]
-    var value = Double(self)
-    var unitIndex = 0
-
-    while value >= 1024 && unitIndex < units.count - 1 {
-      value /= 1024
-      unitIndex += 1
-    }
-
-    return String(format: "%.2f %@", value, units[unitIndex])
-  }
-}
-
 struct AppProgress: Identifiable {
   let id = UUID()
   let appPath: String
@@ -80,3 +65,4 @@ struct AppProgress: Identifiable {
     return totalFiles == 0 ? 0.0 : Double(processedFiles) / Double(totalFiles)
   }
 }
+

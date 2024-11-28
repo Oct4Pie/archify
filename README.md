@@ -15,7 +15,7 @@ Archify is a tool that helps reduce the size of Mach-O universal binaries to sav
 
 To install Archify, follow these steps:
 
-1. Go to the [releases](https://github.com/Oct4Pie/archify/releases) section of the Archify GitHub repository.
+1. Go to the [releases](https://github.com/Oct4Pie/archify/releases) section of the Archify GitHub repository (the only recommended version is 1.4.0 due to the addition of Mac distribution certificate, which, in turn, fixes a helper vulnerability and adds notarization.
 2. Download the latest release of Archify.
 3. Once downloaded, open the dmg or zip file and optionally move the Archify app to your Applications folder.
 

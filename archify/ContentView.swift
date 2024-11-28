@@ -13,7 +13,7 @@ enum UtilityType: String, CaseIterable {
     case langCleaner = "Language Cleaner"
     case batchProcessor = "Batch Processor"
     case universalApps = "Universal Apps"
-
+    
     var icon: String {
         switch self {
         case .appProcessor: return "gearshape.fill"
@@ -30,7 +30,7 @@ struct ContentView: View {
     @State private var selectedUtility: UtilityType? = .appProcessor
     @State private var isHovering: UtilityType?
     @State private var showSidebar: Bool = true
-
+    
     var body: some View {
         NavigationView {
             if showSidebar {
@@ -40,8 +40,16 @@ struct ContentView: View {
             mainContent
         }
         .navigationViewStyle(DoubleColumnNavigationViewStyle())
+        .onAppear(perform: configureWindow)
+    }
+    
+    private func configureWindow() {
+        if let window = NSApplication.shared.windows.first {
+            window.center()
+        }
     }
 
+    
     var sidebar: some View {
         List {
             ForEach(UtilityType.allCases, id: \.self) { utility in
@@ -72,7 +80,7 @@ struct ContentView: View {
         .listStyle(SidebarListStyle())
         .frame(minWidth: 200)
     }
-
+    
     var mainContent: some View {
         Group {
             if let selectedUtility = selectedUtility {
@@ -82,7 +90,7 @@ struct ContentView: View {
             }
         }
     }
-
+    
     var welcomeView: some View {
         VStack(spacing: 20) {
             Image(systemName: "apps.iphone")
@@ -100,7 +108,7 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(NSColor.windowBackgroundColor))
     }
-
+    
     @ViewBuilder
     func destinationView(for utility: UtilityType) -> some View {
         switch utility {

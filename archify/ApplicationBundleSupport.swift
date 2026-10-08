@@ -1,4 +1,5 @@
 import Darwin
+import Compression
 import Foundation
 
 struct ApplicationCopier {
@@ -653,6 +654,7 @@ final class ApplicationThinner {
 
     private let fileManager: FileManager
     private let lipoURL: URL
+    private let compressBinaries: Bool
     private let thinningQueue = DispatchQueue(
         label: "com.oct4pie.archify.thinning",
         qos: .userInitiated
@@ -660,10 +662,12 @@ final class ApplicationThinner {
 
     init(
         fileManager: FileManager = .default,
-        lipoURL: URL = URL(fileURLWithPath: "/usr/bin/lipo")
+        lipoURL: URL = URL(fileURLWithPath: "/usr/bin/lipo"),
+        compressBinaries: Bool = true
     ) {
         self.fileManager = fileManager
         self.lipoURL = lipoURL
+        self.compressBinaries = compressBinaries
     }
 
     func thinApplication(
@@ -998,6 +1002,14 @@ final class ApplicationThinner {
         guard copyMetadata(from: path, to: preparedPath) else {
             try? fileManager.removeItem(atPath: preparedPath)
             return (nil, "Failed to preserve binary metadata while thinning.")
+        }
+
+        // Compress last: copying metadata from an uncompressed file onto a
+        // compressed one clears its flag and leaves it reading as empty.
+        if compressBinaries,
+           TransparentCompression.compressFile(atPath: preparedPath) == .damaged {
+            try? fileManager.removeItem(atPath: preparedPath)
+            return (nil, "Failed to compress a thinned binary.")
         }
 
         guard FileSystemUtilities.identity(
@@ -1409,5 +1421,206 @@ final class ApplicationThinner {
             from: architectures,
             targetArchitecture: targetArchitecture
         )
+    }
+}
+
+/// macOS transparent file compression (decmpfs), the format Apple's installers
+/// use for app bundles. The file keeps its exact contents when read, so code
+/// signatures are unaffected; only its size on disk changes.
+enum TransparentCompression {
+    enum Outcome: Equatable {
+        /// The file is compressed and reads back identically.
+        case compressed
+        /// The file was left as it was (unsupported, too small to gain, or
+        /// compression failed cleanly).
+        case unchanged
+        /// Compression failed and the original contents could not be
+        /// restored. The file must not be used.
+        case damaged
+    }
+
+    private static let chunkSize = 64 * 1024
+    /// LZFSE chunks stored in the resource fork.
+    private static let lzfseResourceForkType: UInt32 = 12
+    private static let resourceForkName = "com.apple.ResourceFork"
+    private static let headerName = "com.apple.decmpfs"
+    private static let compressedFlag = UInt32(UF_COMPRESSED)
+
+    static func isCompressed(atPath path: String) -> Bool {
+        var info = stat()
+        guard lstat(path, &info) == 0 else { return false }
+        return info.st_flags & compressedFlag != 0
+    }
+
+    /// Compresses a regular file in place, then reads it back and compares it
+    /// with the original bytes. Only use this after every other metadata
+    /// change: copying flags from an uncompressed file onto a compressed one
+    /// leaves it reading as empty.
+    @discardableResult
+    static func compressFile(atPath path: String) -> Outcome {
+        // Opening a compressed file for writing decompresses it.
+        guard !isCompressed(atPath: path) else { return .unchanged }
+        let fd = open(path, O_RDWR | O_NOFOLLOW | O_CLOEXEC)
+        guard fd >= 0 else { return .unchanged }
+        defer { close(fd) }
+
+        var info = stat()
+        guard fstat(fd, &info) == 0,
+              info.st_mode & S_IFMT == S_IFREG,
+              info.st_flags & compressedFlag == 0,
+              info.st_size > 0,
+              // Chunk offsets are 32-bit.
+              info.st_size < Int64(UInt32.max / 2)
+        else {
+            return .unchanged
+        }
+
+        let size = Int(info.st_size)
+        var original = [UInt8](repeating: 0, count: size)
+        guard readFully(fd, into: &original),
+              let fork = resourceFork(for: original),
+              // Worth it only when at least one disk block is saved.
+              fork.count + 4096 <= size
+        else {
+            return .unchanged
+        }
+
+        var header = [UInt8]("fpmc".utf8)
+        withUnsafeBytes(of: lzfseResourceForkType.littleEndian) { header += $0 }
+        withUnsafeBytes(of: UInt64(size).littleEndian) { header += $0 }
+
+        guard fsetxattr(fd, resourceForkName, fork, fork.count, 0, XATTR_SHOWCOMPRESSION) == 0,
+              fsetxattr(fd, headerName, header, header.count, 0, XATTR_SHOWCOMPRESSION) == 0
+        else {
+            removeCompressionAttributes(fd)
+            return .unchanged
+        }
+
+        guard ftruncate(fd, 0) == 0 else {
+            removeCompressionAttributes(fd)
+            return .unchanged
+        }
+
+        guard fchflags(fd, info.st_flags | compressedFlag) == 0 else {
+            return restore(fd, path: path, original: original, info: info)
+        }
+        restoreTimes(fd, info: info)
+
+        guard contents(atPath: path) == original else {
+            return restore(fd, path: path, original: original, info: info)
+        }
+        return .compressed
+    }
+
+    private static func resourceFork(for data: [UInt8]) -> [UInt8]? {
+        let chunkCount = (data.count + chunkSize - 1) / chunkSize
+        let tableSize = (chunkCount + 1) * MemoryLayout<UInt32>.size
+        var fork = [UInt8](repeating: 0, count: tableSize)
+        fork.reserveCapacity(tableSize + data.count / 2)
+
+        let scratch = UnsafeMutableRawPointer.allocate(
+            byteCount: compression_encode_scratch_buffer_size(COMPRESSION_LZFSE),
+            alignment: 16
+        )
+        defer { scratch.deallocate() }
+        // LZFSE stores incompressible input raw with a small header.
+        var encoded = [UInt8](repeating: 0, count: chunkSize + 1024)
+        var offsets: [UInt32] = []
+
+        for index in 0..<chunkCount {
+            let start = index * chunkSize
+            let length = min(chunkSize, data.count - start)
+            let encodedLength = data.withUnsafeBufferPointer { source in
+                encoded.withUnsafeMutableBufferPointer { destination in
+                    compression_encode_buffer(
+                        destination.baseAddress!,
+                        destination.count,
+                        source.baseAddress! + start,
+                        length,
+                        scratch,
+                        COMPRESSION_LZFSE
+                    )
+                }
+            }
+            guard encodedLength > 0 else { return nil }
+            offsets.append(UInt32(fork.count))
+            fork += encoded[0..<encodedLength]
+        }
+        offsets.append(UInt32(fork.count))
+
+        for (index, offset) in offsets.enumerated() {
+            withUnsafeBytes(of: offset.littleEndian) { bytes in
+                fork.replaceSubrange(index * 4..<index * 4 + 4, with: bytes)
+            }
+        }
+        return fork
+    }
+
+    /// Puts the original bytes back after a failed attempt.
+    private static func restore(
+        _ fd: Int32,
+        path: String,
+        original: [UInt8],
+        info: stat
+    ) -> Outcome {
+        NSLog("Transparent compression failed for %@; restoring.", path)
+        guard fchflags(fd, info.st_flags & ~compressedFlag) == 0 else {
+            return .damaged
+        }
+        removeCompressionAttributes(fd)
+        guard ftruncate(fd, 0) == 0,
+              writeFully(fd, original)
+        else {
+            return .damaged
+        }
+        restoreTimes(fd, info: info)
+        return contents(atPath: path) == original ? .unchanged : .damaged
+    }
+
+    private static func removeCompressionAttributes(_ fd: Int32) {
+        _ = fremovexattr(fd, headerName, XATTR_SHOWCOMPRESSION)
+        _ = fremovexattr(fd, resourceForkName, XATTR_SHOWCOMPRESSION)
+    }
+
+    private static func restoreTimes(_ fd: Int32, info: stat) {
+        var times = [info.st_atimespec, info.st_mtimespec]
+        _ = futimens(fd, &times)
+    }
+
+    /// Reads through a fresh descriptor so the kernel decompresses the file.
+    private static func contents(atPath path: String) -> [UInt8]? {
+        let fd = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+        guard fd >= 0 else { return nil }
+        defer { close(fd) }
+        var info = stat()
+        guard fstat(fd, &info) == 0 else { return nil }
+        var buffer = [UInt8](repeating: 0, count: Int(info.st_size))
+        return readFully(fd, into: &buffer) ? buffer : nil
+    }
+
+    private static func readFully(_ fd: Int32, into buffer: inout [UInt8]) -> Bool {
+        var offset = 0
+        while offset < buffer.count {
+            let count = buffer.withUnsafeMutableBytes { bytes in
+                pread(fd, bytes.baseAddress! + offset, bytes.count - offset, off_t(offset))
+            }
+            if count < 0, errno == EINTR { continue }
+            guard count > 0 else { return false }
+            offset += count
+        }
+        return true
+    }
+
+    private static func writeFully(_ fd: Int32, _ data: [UInt8]) -> Bool {
+        var offset = 0
+        while offset < data.count {
+            let count = data.withUnsafeBytes { bytes in
+                pwrite(fd, bytes.baseAddress! + offset, bytes.count - offset, off_t(offset))
+            }
+            if count < 0, errno == EINTR { continue }
+            guard count > 0 else { return false }
+            offset += count
+        }
+        return true
     }
 }

@@ -1,0 +1,151 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - '**'
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  version-change:
+    runs-on: ubuntu-latest
+    outputs:
+      release_changed: ${{ steps.version.outputs.release_changed }}
+      current_version: ${{ steps.version.outputs.current_version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: version
+        name: Detect app version/build change
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          CURRENT="$(python3 scripts/project-version.py --target app)"
+          echo "current_version=$CURRENT" >> "$GITHUB_OUTPUT"
+
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            BASE_SHA="$PR_BASE_SHA"
+          else
+            BASE_SHA="$PUSH_BEFORE_SHA"
+          fi
+
+          if [[ -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]] || ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            git fetch origin "$DEFAULT_BRANCH" --quiet
+            BASE_SHA="$(git merge-base HEAD "origin/$DEFAULT_BRANCH")"
+          fi
+
+          git show "$BASE_SHA:archify.xcodeproj/project.pbxproj" > /tmp/base-project.pbxproj
+          BASE="$(python3 scripts/project-version.py --project /tmp/base-project.pbxproj --target app)"
+          if [[ "$CURRENT" != "$BASE" ]]; then
+            echo "release_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "release_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  test-arm64:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Environment
+        run: |
+          sw_vers
+          xcodebuild -version
+          uname -m
+
+      - name: Static checks
+        run: |
+          set -euo pipefail
+          git diff --check
+          bash -n scripts/build-privileged-debug.sh
+          bash -n scripts/build-release.sh
+          bash -n scripts/generate_appcast.sh
+          python3 -m py_compile archify.py tests/test_archify_cli.py tests/test_update_config.py scripts/project-version.py
+
+      - name: Python tests
+        run: python3 -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Swift tests
+        run: |
+          xcodebuild \
+            -project archify.xcodeproj \
+            -scheme archifyTests \
+            -configuration Debug \
+            -destination 'platform=macOS,arch=arm64' \
+            MACOSX_DEPLOYMENT_TARGET=12.0 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            DEVELOPMENT_TEAM= \
+            test
+
+      - name: Analyze
+        run: |
+          xcodebuild \
+            -project archify.xcodeproj \
+            -scheme archify \
+            -configuration Debug \
+            -destination 'platform=macOS,arch=arm64' \
+            MACOSX_DEPLOYMENT_TARGET=12.0 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            DEVELOPMENT_TEAM= \
+            analyze
+
+  test-intel:
+    runs-on: macos-26-intel
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Environment
+        run: |
+          sw_vers
+          xcodebuild -version
+          uname -m
+
+      - name: Python tests
+        run: python3 -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Swift tests
+        run: |
+          xcodebuild \
+            -project archify.xcodeproj \
+            -scheme archifyTests \
+            -configuration Debug \
+            -destination 'platform=macOS,arch=x86_64' \
+            ARCHS=x86_64 \
+            ONLY_ACTIVE_ARCH=NO \
+            MACOSX_DEPLOYMENT_TARGET=12.0 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            DEVELOPMENT_TEAM= \
+            test
+
+  release-build:
+    needs:
+      - version-change
+      - test-arm64
+      - test-intel
+    if: needs.version-change.outputs.release_changed == 'true'
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build universal Release validation artifact
+        run: scripts/build-release.sh --unsigned --output "$RUNNER_TEMP/archify-release"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Archify-${{ needs.version-change.outputs.current_version }}-unsigned-release-validation
+          path: ${{ runner.temp }}/archify-release/updates/
+          if-no-files-found: error

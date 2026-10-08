@@ -8,171 +8,203 @@
 import Foundation
 
 class Signer {
+    private enum EntitlementsExtraction {
+        case extracted(path: String)
+        case none
+        case failed
+    }
+
     let appState: AppState
     let ldidPath: String
-    
+
     init(appState: AppState, ldidPath: String) {
         self.appState = appState
         self.ldidPath = ldidPath
     }
-    
-    func signBin(bin: String, noEnt: Bool) {
+
+    @discardableResult
+    func signBin(bin: String, noEnt: Bool) -> Bool {
         var entitlementsPath: String?
-        
+
         if !noEnt {
-            entitlementsPath = extractEntitlementsWithLdid(bin: bin)
-            if entitlementsPath == nil {
+            switch extractEntitlementsWithLdid(bin: bin) {
+            case .extracted(let path):
+                entitlementsPath = path
+            case .none:
+                break
+            case .failed:
                 appState.appendLog("Failed to extract entitlements for \(bin)")
-                return
+                return false
             }
         }
-        
+        defer {
+            if let entitlementsPath {
+                try? FileManager.default.removeItem(atPath: entitlementsPath)
+            }
+        }
+
         var arguments = ["-S", bin]
         if let entitlementsPath = entitlementsPath {
             arguments = ["-S\(entitlementsPath)", bin]
         }
-        
+
         let process = Process()
-        process.launchPath = ldidPath
+        process.executableURL = URL(fileURLWithPath: ldidPath)
         process.arguments = arguments
-        
+
         do {
             try process.run()
             process.waitUntilExit()
             if process.terminationStatus == 0 {
                 appState.appendLog("Successfully signed \(bin) with ldid")
+                return true
             } else {
                 appState.appendLog("Failed to sign \(bin) with ldid")
+                return false
             }
         } catch {
             appState.appendLog("Error signing binary \(bin): \(error)")
-        }
-        
-        if let entitlementsPath = entitlementsPath {
-            try? FileManager.default.removeItem(atPath: entitlementsPath)
+            return false
         }
     }
-    
-    private func extractEntitlementsWithLdid(bin: String) -> String? {
+
+    private func extractEntitlementsWithLdid(bin: String) -> EntitlementsExtraction {
         let process = Process()
-        process.launchPath = ldidPath
+        process.executableURL = URL(fileURLWithPath: ldidPath)
         process.arguments = ["-e", bin]
-        
+
         let pipe = Pipe()
         process.standardOutput = pipe
-        
+        process.standardError = FileHandle.nullDevice
+
         do {
             try process.run()
         } catch {
             appState.appendLog("Error running ldid to extract entitlements: \(error)")
-            return nil
+            return .failed
         }
-        
+
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
-        
+
         if process.terminationStatus != 0 {
             appState.appendLog("ldid failed to extract entitlements")
-            return nil
+            return .failed
         }
-        
-        guard
-            let entitlements = String(data: data, encoding: .utf8)?.trimmingCharacters(
-                in: .whitespacesAndNewlines), !entitlements.isEmpty
-        else {
-            appState.appendLog("No entitlements found in \(bin)")
-            return nil
-        }
-        
-        let tempDir = FileManager.default.temporaryDirectory
-        let entitlementsPath = tempDir.appendingPathComponent(UUID().uuidString).path + ".xml"
-        
-        do {
-            try entitlements.write(toFile: entitlementsPath, atomically: true, encoding: .utf8)
-            return entitlementsPath
-        } catch {
-            appState.appendLog("Error writing entitlements to file: \(error)")
-            return nil
-        }
+
+        return writeEntitlements(data, for: bin)
     }
-    
-    func signApp(appPath: String, noEnt: Bool) {
+
+    @discardableResult
+    func signApp(appPath: String, noEnt: Bool) -> Bool {
         var entitlementsPath: String?
-        
+
         if !noEnt {
-            entitlementsPath = extractEntitlementsWithCodesign(at: appPath)
-            if entitlementsPath == nil {
+            switch extractEntitlementsWithCodesign(at: appPath) {
+            case .extracted(let path):
+                entitlementsPath = path
+            case .none:
+                break
+            case .failed:
                 appState.appendLog("Failed to extract entitlements for \(appPath)")
-                return
+                return false
             }
         }
-        
-        let process = Process()
-        process.launchPath = "/usr/bin/codesign"
-        var arguments = ["--force", "--deep", "-s", "-"]
-        if let entitlementsPath = entitlementsPath {
-            arguments.append("--entitlements")
-            arguments.append(entitlementsPath)
+        defer {
+            if let entitlementsPath {
+                try? FileManager.default.removeItem(atPath: entitlementsPath)
+            }
         }
-        arguments.append(appPath)
+
+        // Sign nested code without entitlements first, then re-sign only the
+        // outer app with the main executable's entitlements. Combining
+        // --deep with --entitlements would copy them onto every helper,
+        // framework, and plug-in.
+        guard runCodesign(["--force", "--deep", "-s", "-", appPath]) else {
+            appState.appendLog("Failed to ad-hoc sign \(appPath) with codesign")
+            return false
+        }
+
+        if let entitlementsPath {
+            guard runCodesign([
+                "--force",
+                "-s",
+                "-",
+                "--entitlements",
+                entitlementsPath,
+                appPath
+            ]) else {
+                appState.appendLog(
+                    "Failed to apply entitlements to \(appPath) with codesign"
+                )
+                return false
+            }
+        }
+
+        appState.appendLog("Successfully ad-hoc signed \(appPath) with codesign")
+        return true
+    }
+
+    private func runCodesign(_ arguments: [String]) -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
         process.arguments = arguments
-        
+
         do {
             try process.run()
             process.waitUntilExit()
-            if process.terminationStatus == 0 {
-                appState.appendLog("Successfully ad-hoc signed \(appPath) with codesign")
-            } else {
-                appState.appendLog("Failed to ad-hoc sign \(appPath) with codesign")
-            }
+            return process.terminationStatus == 0
         } catch {
-            appState.appendLog("Error signing app \(appPath): \(error)")
-        }
-        
-        if let entitlementsPath = entitlementsPath {
-            try? FileManager.default.removeItem(atPath: entitlementsPath)
+            appState.appendLog("Error running codesign: \(error)")
+            return false
         }
     }
-    
-    private func extractEntitlementsWithCodesign(at path: String) -> String? {
+
+    private func extractEntitlementsWithCodesign(at path: String) -> EntitlementsExtraction {
         let process = Process()
-        process.launchPath = "/usr/bin/codesign"
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
         process.arguments = ["-d", "--entitlements", "-", "--xml", path]
-        
+
         let pipe = Pipe()
         process.standardOutput = pipe
-        
+        process.standardError = FileHandle.nullDevice
+
         do {
             try process.run()
-            process.waitUntilExit()
-            
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            if process.terminationStatus != 0 {
-                appState.appendLog("codesign failed to extract entitlements")
-                return nil
-            }
-            
-            guard
-                let entitlements = String(data: data, encoding: .utf8)?.trimmingCharacters(
-                    in: .whitespacesAndNewlines), !entitlements.isEmpty
-            else {
-                appState.appendLog("No entitlements found in \(path)")
-                return nil
-            }
-            
-            let tempDir = FileManager.default.temporaryDirectory
-            let entitlementsPath = tempDir.appendingPathComponent(UUID().uuidString).path + ".xml"
-            
-            do {
-                try entitlements.write(toFile: entitlementsPath, atomically: true, encoding: .utf8)
-                return entitlementsPath
-            } catch {
-                appState.appendLog("Error writing entitlements to file: \(error)")
-                return nil
-            }
         } catch {
             appState.appendLog("Error extracting entitlements with codesign: \(error)")
-            return nil
+            return .failed
+        }
+
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+
+        if process.terminationStatus != 0 {
+            appState.appendLog("codesign failed to extract entitlements")
+            return .failed
+        }
+
+        return writeEntitlements(data, for: path)
+    }
+
+    private func writeEntitlements(_ data: Data, for path: String) -> EntitlementsExtraction {
+        guard let entitlements = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !entitlements.isEmpty
+        else {
+            appState.appendLog("No entitlements found in \(path); signing without entitlements")
+            return .none
+        }
+
+        let entitlementsPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString).path + ".xml"
+
+        do {
+            try entitlements.write(toFile: entitlementsPath, atomically: true, encoding: .utf8)
+            return .extracted(path: entitlementsPath)
+        } catch {
+            appState.appendLog("Error writing entitlements to file: \(error)")
+            return .failed
         }
     }
 }

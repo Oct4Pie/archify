@@ -8,6 +8,7 @@
 - The helper accepts connections only from Archify signed by the same developer. On macOS 12 the check uses the connecting process's audit token instead of its process ID.
 - The helper can only optimize apps and remove language folders. Its older file operations that accepted any path are gone.
 - Helper paths are checked without following symbolic links, and requests outside the app being changed are refused.
+- The helper prepares changes in a folder only the system can modify and reads app files without following links, so other programs cannot redirect what it writes.
 - The helper exits when idle, so no root process lingers and an updated helper is used from the next operation.
 - The Archify 1.4 helper is replaced automatically, with no restart or logout.
 

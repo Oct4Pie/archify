@@ -127,7 +127,7 @@ class UpdateConfigurationTests(unittest.TestCase):
             text=True,
         )
         version = json.loads(result.stdout)
-        self.assertEqual(version, {"version": "1.5.0", "build": "10"})
+        self.assertEqual(version, {"version": "1.5.0", "build": "11"})
 
         project = (
             ROOT / "archify.xcodeproj" / "project.pbxproj"
@@ -158,7 +158,7 @@ class UpdateConfigurationTests(unittest.TestCase):
         )[0]
         self.assertIn("ONLY_ACTIVE_ARCH = NO;", release_block)
         self.assertIn("MARKETING_VERSION = 1.5.0;", release_block)
-        self.assertIn("CURRENT_PROJECT_VERSION = 10;", release_block)
+        self.assertIn("CURRENT_PROJECT_VERSION = 11;", release_block)
 
         with (
             ROOT

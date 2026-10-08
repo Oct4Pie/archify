@@ -23,7 +23,14 @@ class HelperTool: NSObject, NSXPCListenerDelegate, HelperToolProtocol {
         return requirement
     }()
     private let listener: NSXPCListener
-    private let applicationThinner = ApplicationThinner()
+    // Staged in a root-only directory: the folder beside an app in
+    // /Applications can be renamed by any administrator's processes.
+    private let applicationThinner = ApplicationThinner(
+        stagingDirectory: URL(
+            fileURLWithPath: "/Library/Application Support/com.oct4pie.archifyhelper",
+            isDirectory: true
+        )
+    )
     private let pathValidator = HelperPathValidator(allowedDirectories: ["/Applications"])
     private let secureDirectoryRemover = SecureDirectoryRemover()
     private let supportedArchitectures: Set<String> = ["arm64", "arm64e", "x86_64"]

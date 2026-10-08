@@ -69,7 +69,15 @@ struct SecureDirectoryRemover {
                 O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC
             )
         }
-        guard directoryFD >= 0 else {
+        guard directoryFD >= 0,
+              FileSystemUtilities.identity(
+                ofFileDescriptor: directoryFD,
+                requireDirectory: true
+              ) == target.identity
+        else {
+            if directoryFD >= 0 {
+                close(directoryFD)
+            }
             _ = restoreClaimedDirectory(
                 parentFD: parent.fd,
                 claimedName: claimedName,
@@ -197,6 +205,15 @@ struct SecureDirectoryRemover {
                 }
                 guard childFD >= 0 else {
                     return errno
+                }
+                // The entry may have been replaced since it was examined.
+                var childInfo = stat()
+                guard fstat(childFD, &childInfo) == 0,
+                      childInfo.st_dev == info.st_dev,
+                      childInfo.st_ino == info.st_ino
+                else {
+                    close(childFD)
+                    return EBUSY
                 }
                 let childError = removeContents(
                     ofDirectoryFD: childFD

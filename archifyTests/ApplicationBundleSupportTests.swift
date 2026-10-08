@@ -579,7 +579,9 @@ final class ApplicationThinnerTests: XCTestCase {
         let good = macOSURL.appendingPathComponent("Good")
         let failing = macOSURL.appendingPathComponent("Fail")
         try FileManager.default.copyItem(atPath: "/usr/bin/true", toPath: good.path)
-        try FileManager.default.copyItem(atPath: "/usr/bin/true", toPath: failing.path)
+        // lipo now reads staged copies, so the failing binary is recognized
+        // by its contents rather than its name.
+        try FileManager.default.copyItem(atPath: "/bin/ls", toPath: failing.path)
         let goodBefore = try Data(contentsOf: good)
         let failingBefore = try Data(contentsOf: failing)
 
@@ -589,10 +591,10 @@ final class ApplicationThinnerTests: XCTestCase {
         if [ "$1" = "-archs" ]; then
             exec /usr/bin/lipo "$@"
         fi
-        case "$1" in
-            *Fail*) exit 42 ;;
-            *) exec /usr/bin/lipo "$@" ;;
-        esac
+        if /usr/bin/cmp -s "$1" /bin/ls; then
+            exit 42
+        fi
+        exec /usr/bin/lipo "$@"
         """
         try script.write(to: fakeLipo, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes(
@@ -680,6 +682,125 @@ final class ApplicationThinnerTests: XCTestCase {
         XCTAssertFalse(try parentContainsArchifyTransactionDirectory())
     }
 
+    func testTrustedStagingKeepsTransactionsOutOfTheAppFolder() throws {
+        let sandbox = try realSandboxURL()
+        let binary = sandbox.appendingPathComponent("Test.app/Contents/MacOS/Runner")
+        try FileManager.default.copyItem(atPath: "/usr/bin/true", toPath: binary.path)
+        let staging = sandbox.appendingPathComponent("staging", isDirectory: true)
+
+        let result = try thin(
+            appPath: sandbox.appendingPathComponent("Test.app").path,
+            thinner: ApplicationThinner(stagingDirectory: staging)
+        )
+
+        XCTAssertEqual(result.changedPaths?.count, 1, result.error ?? "unknown error")
+        XCTAssertEqual(try architectures(at: binary.path).count, 1)
+        XCTAssertFalse(try parentContainsArchifyTransactionDirectory())
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: staging.path), [])
+    }
+
+    func testTrustedStagingRejectsAppReachedThroughALink() throws {
+        let sandbox = try realSandboxURL()
+        let binary = sandbox.appendingPathComponent("Test.app/Contents/MacOS/Runner")
+        try FileManager.default.copyItem(atPath: "/usr/bin/true", toPath: binary.path)
+        let before = try Data(contentsOf: binary)
+        let link = sandbox.appendingPathComponent("Link")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: sandbox)
+
+        let result = try thin(
+            appPath: link.appendingPathComponent("Test.app").path,
+            thinner: ApplicationThinner(
+                stagingDirectory: sandbox.appendingPathComponent("staging", isDirectory: true)
+            )
+        )
+
+        XCTAssertNil(result.changedPaths)
+        XCTAssertEqual(result.error, "The application path is not a stable directory.")
+        XCTAssertEqual(try Data(contentsOf: binary), before)
+    }
+
+    func testUntrustedStagingDirectoryIsRefused() throws {
+        let sandbox = try realSandboxURL()
+        let binary = sandbox.appendingPathComponent("Test.app/Contents/MacOS/Runner")
+        try FileManager.default.copyItem(atPath: "/usr/bin/true", toPath: binary.path)
+        let before = try Data(contentsOf: binary)
+
+        let shared = sandbox.appendingPathComponent("shared", isDirectory: true)
+        try FileManager.default.createDirectory(at: shared, withIntermediateDirectories: false)
+        try FileManager.default.setAttributes([.posixPermissions: 0o777], ofItemAtPath: shared.path)
+        let linked = sandbox.appendingPathComponent("linked")
+        try FileManager.default.createSymbolicLink(at: linked, withDestinationURL: shared)
+
+        XCTAssertFalse(ApplicationThinner.prepareTrustedDirectory(shared))
+        XCTAssertFalse(ApplicationThinner.prepareTrustedDirectory(linked))
+        XCTAssertFalse(
+            ApplicationThinner.prepareTrustedDirectory(shared.appendingPathComponent("inner"))
+        )
+        XCTAssertTrue(
+            ApplicationThinner.prepareTrustedDirectory(sandbox.appendingPathComponent("private"))
+        )
+
+        // Permission bits look private, but an ACL lets everyone add entries.
+        let opened = sandbox.appendingPathComponent("acl-allow", isDirectory: true)
+        let denied = sandbox.appendingPathComponent("acl-deny", isDirectory: true)
+        XCTAssertTrue(ApplicationThinner.prepareTrustedDirectory(opened))
+        XCTAssertTrue(ApplicationThinner.prepareTrustedDirectory(denied))
+        XCTAssertTrue(addACL("everyone allow add_file,delete_child", to: opened))
+        XCTAssertTrue(addACL("everyone deny delete", to: denied))
+        XCTAssertFalse(ApplicationThinner.prepareTrustedDirectory(opened))
+        XCTAssertTrue(ApplicationThinner.prepareTrustedDirectory(denied))
+
+        let result = try thin(
+            appPath: sandbox.appendingPathComponent("Test.app").path,
+            thinner: ApplicationThinner(stagingDirectory: shared)
+        )
+        XCTAssertNil(result.changedPaths)
+        XCTAssertEqual(result.error, "Failed to create a thinning transaction directory.")
+        XCTAssertEqual(try Data(contentsOf: binary), before)
+    }
+
+    func testCompressionKeepsResourceForksAndHardLinks() throws {
+        let payload = Data((0..<(300 * 1024)).map { UInt8($0 % 7) })
+        let forked = sandboxURL.appendingPathComponent("forked")
+        try payload.write(to: forked)
+        let fork = Array("resource data".utf8)
+        XCTAssertEqual(setxattr(forked.path, "com.apple.ResourceFork", fork, fork.count, 0, 0), 0)
+        XCTAssertEqual(TransparentCompression.compressFile(atPath: forked.path), .unchanged)
+        var stored = [UInt8](repeating: 0, count: 64)
+        let length = getxattr(forked.path, "com.apple.ResourceFork", &stored, stored.count, 0, 0)
+        XCTAssertEqual(Array(stored.prefix(max(0, length))), fork)
+
+        let linked = sandboxURL.appendingPathComponent("linked")
+        try payload.write(to: linked)
+        try FileManager.default.linkItem(
+            at: linked,
+            to: sandboxURL.appendingPathComponent("other-name")
+        )
+        XCTAssertEqual(TransparentCompression.compressFile(atPath: linked.path), .unchanged)
+        XCTAssertFalse(TransparentCompression.isCompressed(atPath: linked.path))
+    }
+
+    private func addACL(_ entry: String, to url: URL) -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/chmod")
+        process.arguments = ["+a", entry, url.path]
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            return false
+        }
+    }
+
+    /// The sandbox without symbolic links (`/var` is one), as trusted
+    /// staging requires real paths.
+    private func realSandboxURL() throws -> URL {
+        let path = try XCTUnwrap(realpath(sandboxURL.path, nil))
+        defer { free(path) }
+        return URL(fileURLWithPath: String(cString: path), isDirectory: true)
+    }
+
     private func makeSignedAppWithSealedResource() throws -> (URL, URL) {
         let runner = macOSURL.appendingPathComponent("Runner")
         try FileManager.default.copyItem(atPath: "/usr/bin/true", toPath: runner.path)
@@ -694,14 +815,16 @@ final class ApplicationThinnerTests: XCTestCase {
     }
 
     private func thin(
-        signaturePolicy: ApplicationThinner.SignaturePolicy,
-        target: String
+        signaturePolicy: ApplicationThinner.SignaturePolicy = .preserve,
+        target: String = ProcessInfo.processInfo.machineArchitecture,
+        appPath: String? = nil,
+        thinner: ApplicationThinner = ApplicationThinner()
     ) throws -> (changedPaths: [String]?, error: String?) {
         let completion = expectation(description: "thin application")
         var changedPaths: [String]?
         var error: String?
-        ApplicationThinner().thinApplicationReportingChanges(
-            atPath: appURL.path,
+        thinner.thinApplicationReportingChanges(
+            atPath: appPath ?? appURL.path,
             targetArchitecture: target,
             signaturePolicy: signaturePolicy
         ) { paths, resultError in

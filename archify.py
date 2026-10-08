@@ -1,5 +1,6 @@
 import argparse
 import ctypes
+import errno
 import os
 import plistlib
 import shutil
@@ -336,6 +337,7 @@ COMPRESSION_LZFSE = 0x801
 DECMPFS_LZFSE_RESOURCE_FORK = 12
 UF_COMPRESSED = 0x20
 XATTR_SHOWCOMPRESSION = 0x20
+XATTR_CREATE = 0x2
 DECMPFS_XATTR = b"com.apple.decmpfs"
 RESOURCE_FORK_XATTR = b"com.apple.ResourceFork"
 
@@ -347,6 +349,11 @@ def _compression_libraries():
         ctypes.c_size_t, ctypes.c_uint32, ctypes.c_int,
     ]
     libc.fremovexattr.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
+    libc.fgetxattr.argtypes = [
+        ctypes.c_int, ctypes.c_char_p, ctypes.c_void_p,
+        ctypes.c_size_t, ctypes.c_uint32, ctypes.c_int,
+    ]
+    libc.fgetxattr.restype = ctypes.c_ssize_t
     libc.fchflags.argtypes = [ctypes.c_int, ctypes.c_uint]
     compression = ctypes.CDLL("/usr/lib/libcompression.dylib")
     compression.compression_encode_scratch_buffer_size.argtypes = [ctypes.c_int]
@@ -405,6 +412,8 @@ def compress_file(path):
     if (
         not stat.S_ISREG(info.st_mode)
         or info.st_flags & UF_COMPRESSED
+        # Other links would change too.
+        or info.st_nlink != 1
         or info.st_size == 0
         or info.st_size >= 0x7FFFFFFF
     ):
@@ -417,6 +426,25 @@ def compress_file(path):
 
     fd = os.open(path, os.O_RDWR | os.O_NOFOLLOW)
     try:
+        # Check the file that was actually opened, not the earlier path.
+        opened = os.fstat(fd)
+        if (
+            (opened.st_dev, opened.st_ino) != (info.st_dev, info.st_ino)
+            or not stat.S_ISREG(opened.st_mode)
+            or opened.st_flags & UF_COMPRESSED
+            or opened.st_nlink != 1
+            or opened.st_size != info.st_size
+        ):
+            return "unchanged"
+        info = opened
+        # Compression stores its data in these attributes, so an existing
+        # resource fork would be overwritten. Anything but a clear "no such
+        # attribute" counts as present.
+        for name in (RESOURCE_FORK_XATTR, DECMPFS_XATTR):
+            if libc.fgetxattr(fd, name, None, 0, 0, XATTR_SHOWCOMPRESSION) >= 0:
+                return "unchanged"
+            if ctypes.get_errno() != errno.ENOATTR:
+                return "unchanged"
         original = os.pread(fd, info.st_size, 0)
         fork = _lzfse_resource_fork(original, compression)
         if (
@@ -447,11 +475,13 @@ def compress_file(path):
                 return "damaged"
             return "unchanged" if _read_back(path) == original else "damaged"
 
-        if (
-            libc.fsetxattr(fd, RESOURCE_FORK_XATTR, fork, len(fork), 0, XATTR_SHOWCOMPRESSION) != 0
-            or libc.fsetxattr(fd, DECMPFS_XATTR, header, len(header), 0, XATTR_SHOWCOMPRESSION) != 0
-        ):
-            remove_attributes()
+        # XATTR_CREATE never replaces an attribute that appeared since the
+        # check; on failure only the attributes created here are removed.
+        create = XATTR_SHOWCOMPRESSION | XATTR_CREATE
+        if libc.fsetxattr(fd, RESOURCE_FORK_XATTR, fork, len(fork), 0, create) != 0:
+            return "unchanged"
+        if libc.fsetxattr(fd, DECMPFS_XATTR, header, len(header), 0, create) != 0:
+            libc.fremovexattr(fd, RESOURCE_FORK_XATTR, XATTR_SHOWCOMPRESSION)
             return "unchanged"
         try:
             os.ftruncate(fd, 0)
@@ -667,12 +697,10 @@ def thin_app_transactionally(app_path, target_arch, will_resign=False, compress=
                 f"backup-{uuid.uuid4().hex}"
             )
             os.replace(original, backup_path)
-            try:
-                os.replace(prepared_path, original)
-            except Exception:
-                os.replace(backup_path, original)
-                raise
+            # Record the backup first: if installing the replacement fails,
+            # rollback restores it, and keeps it if that fails too.
             committed.append((original, backup_path))
+            os.replace(prepared_path, original)
     except Exception as error:
         rollback_errors = []
         for original, backup_path in reversed(committed):

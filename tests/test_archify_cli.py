@@ -338,6 +338,62 @@ class ArchifyCLITests(unittest.TestCase):
             )
         )
 
+    def test_thinning_stores_binaries_compressed(self):
+        app = self.make_app()
+        runner = app / "Contents" / "MacOS" / "Runner"
+        shutil.copyfile("/usr/bin/true", runner)
+        runner.chmod(0o755)
+
+        archify.thin_app_transactionally(str(app), archify.machine_architecture())
+
+        self.assertTrue(os.lstat(runner).st_flags & archify.UF_COMPRESSED)
+        self.assertEqual(len(archify.get_architectures(str(runner))), 1)
+        self.assertEqual(os.lstat(runner).st_mode & 0o777, 0o755)
+
+    def test_thinning_without_compression_leaves_plain_files(self):
+        app = self.make_app()
+        runner = app / "Contents" / "MacOS" / "Runner"
+        shutil.copyfile("/usr/bin/true", runner)
+
+        archify.thin_app_transactionally(
+            str(app),
+            archify.machine_architecture(),
+            compress=False,
+        )
+
+        self.assertFalse(os.lstat(runner).st_flags & archify.UF_COMPRESSED)
+
+    def test_compress_file_reads_back_identically(self):
+        payload = bytes(
+            (index if index % 251 == 0 else index % 7) & 0xFF
+            for index in range(300 * 1024)
+        )
+        path = self.root / "payload"
+        path.write_bytes(payload)
+        os.chmod(path, 0o751)
+        os.utime(path, (1_000_000, 1_000_000))
+
+        self.assertEqual(archify.compress_file(str(path)), "compressed")
+        info = os.lstat(path)
+        self.assertTrue(info.st_flags & archify.UF_COMPRESSED)
+        self.assertEqual(path.read_bytes(), payload)
+        self.assertEqual(info.st_mode & 0o777, 0o751)
+        self.assertEqual(int(info.st_mtime), 1_000_000)
+        self.assertLess(info.st_blocks * 512, len(payload) // 2)
+        self.assertEqual(archify.compress_file(str(path)), "unchanged")
+
+    def test_compress_file_leaves_incompressible_and_tiny_files(self):
+        noise = os.urandom(200 * 1024)
+        random_path = self.root / "random"
+        random_path.write_bytes(noise)
+        self.assertEqual(archify.compress_file(str(random_path)), "unchanged")
+        self.assertEqual(random_path.read_bytes(), noise)
+
+        tiny = self.root / "tiny"
+        tiny.write_bytes(b"hello")
+        self.assertEqual(archify.compress_file(str(tiny)), "unchanged")
+        self.assertEqual(tiny.read_bytes(), b"hello")
+
     def make_signed_app_with_sealed_resource(self):
         app = self.make_app()
         runner = app / "Contents" / "MacOS" / "Runner"

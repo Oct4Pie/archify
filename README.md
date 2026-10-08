@@ -4,7 +4,7 @@
 
 # Archify
 
-Archify frees disk space by removing code your Mac never runs. Many macOS apps ship as universal binaries that contain both Apple Silicon and Intel code; Archify keeps only the architecture your Mac needs and can also remove unused language files.
+Archify frees disk space by removing code your Mac never runs. Many macOS apps ship as universal binaries that contain both Apple Silicon and Intel code; Archify keeps only the architecture your Mac needs, stores what remains compressed, and can also remove unused language files.
 
 [![GPLv3 License](https://img.shields.io/badge/License-GPL%20v3-yellow.svg)](https://opensource.org/licenses/)
 ![GitHub stars](https://img.shields.io/github/stars/Oct4Pie/archify)
@@ -32,6 +32,8 @@ Releases are signed with a Developer ID and notarized by Apple. From 1.5 on, Arc
 - **Space Savings** — estimates how much space selected apps would free, without changing anything.
 - **Languages** — removes language files for languages you don't use. Your preferred languages, each app's development language, and any language an app's signature depends on are always kept.
 - **Installed Apps** — browse your apps by architecture: universal, Apple Silicon, Intel, or other.
+
+Optimized binaries are stored with macOS's built-in transparent compression, the same format Apple's installers use. Apps read them unchanged, so signatures stay valid, and the binaries typically take a third to half of their thinned size on disk. Sizes and savings are shown as actual space on disk.
 
 Long scans and batch operations can be paused, resumed, or canceled. If an app you are about to change is open, Archify offers to quit it first or skips it.
 
@@ -66,7 +68,7 @@ Under **Advanced** in Optimize App:
 `archify.py` offers the same safe, transactional optimization from Terminal. It always works on a copy and never overwrites an existing app.
 
     python3 archify.py -app APP [APP ...] [-o OUTPUT_DIR] [-arch ARCH]
-                       [-ld LDID] [-Ns] [-Ne] [-cs] [-l]
+                       [-ld LDID] [-Ns] [-Ne] [-cs] [-l] [-Nc]
 
 | Option | Meaning |
 | --- | --- |
@@ -78,6 +80,7 @@ Under **Advanced** in Optimize App:
 | `-Ne`, `--no_entitlements` | Don't reuse entitlements when signing |
 | `-cs`, `--codesign` | Ad-hoc sign the copy with `codesign` |
 | `-l`, `--no_launch` | Don't launch the copy before optimizing |
+| `-Nc`, `--no_compress` | Don't compress the thinned binaries |
 
 Example:
 

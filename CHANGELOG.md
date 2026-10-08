@@ -14,6 +14,8 @@
 ### Safer optimization
 
 - Optimization is transactional: each app is changed with an atomic swap and rolled back on any failure. If macOS blocks a change, nothing is changed.
+- Thinned binaries are stored with macOS transparent compression (LZFSE). They read back byte-for-byte unchanged, so signatures stay valid, and they take far less disk space. Previously, apps that macOS had already compressed could use more space after optimizing.
+- Sizes and savings now show actual space on disk.
 - Files sealed by an app's signature are left alone, so optimized apps keep a valid signature and stay notarized.
 - Open apps are detected before changes. Archify offers to quit them, or skips them.
 - Optimize Apps, Languages, scans and size calculations can be paused, resumed or canceled.
@@ -46,6 +48,7 @@
 
 - Transactional optimization that keeps sealed files, the same as the app.
 - Never overwrites an existing app at the destination.
+- Thinned binaries are stored compressed, the same as the app. Use `--no_compress` to turn this off.
 - Apps without entitlements are no longer reported as signing failures.
 
 ### Removed

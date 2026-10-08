@@ -515,6 +515,66 @@ final class ApplicationThinnerTests: XCTestCase {
         XCTAssertFalse(try parentContainsArchifyTransactionDirectory())
     }
 
+    func testThinningStoresBinariesCompressedAndUnchanged() throws {
+        let binary = macOSURL.appendingPathComponent("Runner")
+        try FileManager.default.copyItem(atPath: "/usr/bin/true", toPath: binary.path)
+        try writeTestAppInfoPlist(executableName: "Runner")
+        XCTAssertTrue(signTestApp())
+
+        let target = ProcessInfo.processInfo.machineArchitecture
+        let result = try thin(signaturePolicy: .preserve, target: target)
+
+        XCTAssertEqual(result.changedPaths?.count, 1, result.error ?? "unknown error")
+        XCTAssertEqual(try architectures(at: binary.path).count, 1)
+        XCTAssertTrue(TransparentCompression.isCompressed(atPath: binary.path))
+        XCTAssertTrue(hasValidCodeSignature(appURL.path, deep: true))
+        XCTAssertFalse(try parentContainsArchifyTransactionDirectory())
+    }
+
+    func testCompressionReadsBackIdenticallyAndPreservesMetadata() throws {
+        let file = sandboxURL.appendingPathComponent("payload")
+        var bytes = [UInt8]()
+        for index in 0..<(300 * 1024) {
+            bytes.append(UInt8(truncatingIfNeeded: index % 251 == 0 ? index : index % 7))
+        }
+        try Data(bytes).write(to: file)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o751, .modificationDate: Date(timeIntervalSince1970: 1_000_000)],
+            ofItemAtPath: file.path
+        )
+
+        XCTAssertEqual(TransparentCompression.compressFile(atPath: file.path), .compressed)
+        XCTAssertTrue(TransparentCompression.isCompressed(atPath: file.path))
+        XCTAssertEqual(try Data(contentsOf: file), Data(bytes))
+
+        let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
+        XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o751)
+        XCTAssertEqual(
+            (attributes[.modificationDate] as? Date)?.timeIntervalSince1970,
+            1_000_000
+        )
+
+        var info = stat()
+        XCTAssertEqual(stat(file.path, &info), 0)
+        XCTAssertLessThan(Int(info.st_blocks) * 512, bytes.count / 2)
+        XCTAssertEqual(TransparentCompression.compressFile(atPath: file.path), .unchanged)
+    }
+
+    func testCompressionLeavesIncompressibleAndTinyFilesAlone() throws {
+        let random = sandboxURL.appendingPathComponent("random")
+        var generator = SystemRandomNumberGenerator()
+        let noise = (0..<(200 * 1024)).map { _ in UInt8.random(in: 0...255, using: &generator) }
+        try Data(noise).write(to: random)
+        XCTAssertEqual(TransparentCompression.compressFile(atPath: random.path), .unchanged)
+        XCTAssertFalse(TransparentCompression.isCompressed(atPath: random.path))
+        XCTAssertEqual(try Data(contentsOf: random), Data(noise))
+
+        let tiny = sandboxURL.appendingPathComponent("tiny")
+        try Data("hello".utf8).write(to: tiny)
+        XCTAssertEqual(TransparentCompression.compressFile(atPath: tiny.path), .unchanged)
+        XCTAssertEqual(try Data(contentsOf: tiny), Data("hello".utf8))
+    }
+
     func testPreparationFailureLeavesEveryOriginalBinaryUntouched() throws {
         let good = macOSURL.appendingPathComponent("Good")
         let failing = macOSURL.appendingPathComponent("Fail")

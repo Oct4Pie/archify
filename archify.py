@@ -331,10 +331,148 @@ def copy_metadata(source, destination):
                 pass
 
 
+COMPRESSION_CHUNK_SIZE = 64 * 1024
+COMPRESSION_LZFSE = 0x801
+DECMPFS_LZFSE_RESOURCE_FORK = 12
+UF_COMPRESSED = 0x20
+XATTR_SHOWCOMPRESSION = 0x20
+DECMPFS_XATTR = b"com.apple.decmpfs"
+RESOURCE_FORK_XATTR = b"com.apple.ResourceFork"
+
+
+def _compression_libraries():
+    libc = ctypes.CDLL("/usr/lib/libSystem.B.dylib", use_errno=True)
+    libc.fsetxattr.argtypes = [
+        ctypes.c_int, ctypes.c_char_p, ctypes.c_void_p,
+        ctypes.c_size_t, ctypes.c_uint32, ctypes.c_int,
+    ]
+    libc.fremovexattr.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
+    libc.fchflags.argtypes = [ctypes.c_int, ctypes.c_uint]
+    compression = ctypes.CDLL("/usr/lib/libcompression.dylib")
+    compression.compression_encode_scratch_buffer_size.argtypes = [ctypes.c_int]
+    compression.compression_encode_scratch_buffer_size.restype = ctypes.c_size_t
+    compression.compression_encode_buffer.argtypes = [
+        ctypes.c_void_p, ctypes.c_size_t, ctypes.c_void_p,
+        ctypes.c_size_t, ctypes.c_void_p, ctypes.c_int,
+    ]
+    compression.compression_encode_buffer.restype = ctypes.c_size_t
+    return libc, compression
+
+
+def _lzfse_resource_fork(data, compression):
+    chunk_count = (len(data) + COMPRESSION_CHUNK_SIZE - 1) // COMPRESSION_CHUNK_SIZE
+    scratch = ctypes.create_string_buffer(
+        compression.compression_encode_scratch_buffer_size(COMPRESSION_LZFSE)
+    )
+    # LZFSE stores incompressible input raw with a small header.
+    encoded = ctypes.create_string_buffer(COMPRESSION_CHUNK_SIZE + 1024)
+    offsets = []
+    chunks = []
+    position = (chunk_count + 1) * 4
+    for index in range(chunk_count):
+        chunk = data[index * COMPRESSION_CHUNK_SIZE:(index + 1) * COMPRESSION_CHUNK_SIZE]
+        length = compression.compression_encode_buffer(
+            encoded, len(encoded), chunk, len(chunk), scratch, COMPRESSION_LZFSE
+        )
+        if length == 0:
+            return None
+        offsets.append(position)
+        chunks.append(encoded.raw[:length])
+        position += length
+    offsets.append(position)
+    return struct.pack(f"<{len(offsets)}I", *offsets) + b"".join(chunks)
+
+
+def _read_back(path):
+    with open(path, "rb") as file:
+        return file.read()
+
+
+def compress_file(path):
+    """Store a file with macOS transparent compression (LZFSE).
+
+    The file reads back byte-for-byte unchanged, so code signatures are
+    unaffected. Returns "compressed", "unchanged" (unsupported, nothing to
+    gain, or a clean failure) or "damaged" (the original could not be
+    restored). Call this only after every other metadata change: copying
+    flags from an uncompressed file onto a compressed one empties it.
+    """
+    try:
+        info = os.lstat(path)
+    except OSError:
+        return "unchanged"
+    # Opening a compressed file for writing decompresses it.
+    if (
+        not stat.S_ISREG(info.st_mode)
+        or info.st_flags & UF_COMPRESSED
+        or info.st_size == 0
+        or info.st_size >= 0x7FFFFFFF
+    ):
+        return "unchanged"
+
+    try:
+        libc, compression = _compression_libraries()
+    except OSError:
+        return "unchanged"
+
+    fd = os.open(path, os.O_RDWR | os.O_NOFOLLOW)
+    try:
+        original = os.pread(fd, info.st_size, 0)
+        fork = _lzfse_resource_fork(original, compression)
+        if (
+            len(original) != info.st_size
+            or fork is None
+            or len(fork) + 4096 > info.st_size
+        ):
+            return "unchanged"
+
+        header = b"fpmc" + struct.pack("<IQ", DECMPFS_LZFSE_RESOURCE_FORK, info.st_size)
+
+        def remove_attributes():
+            libc.fremovexattr(fd, DECMPFS_XATTR, XATTR_SHOWCOMPRESSION)
+            libc.fremovexattr(fd, RESOURCE_FORK_XATTR, XATTR_SHOWCOMPRESSION)
+
+        def restore_times():
+            os.utime(fd, ns=(info.st_atime_ns, info.st_mtime_ns))
+
+        def restore():
+            if libc.fchflags(fd, info.st_flags & ~UF_COMPRESSED) != 0:
+                return "damaged"
+            remove_attributes()
+            try:
+                os.ftruncate(fd, 0)
+                os.pwrite(fd, original, 0)
+                restore_times()
+            except OSError:
+                return "damaged"
+            return "unchanged" if _read_back(path) == original else "damaged"
+
+        if (
+            libc.fsetxattr(fd, RESOURCE_FORK_XATTR, fork, len(fork), 0, XATTR_SHOWCOMPRESSION) != 0
+            or libc.fsetxattr(fd, DECMPFS_XATTR, header, len(header), 0, XATTR_SHOWCOMPRESSION) != 0
+        ):
+            remove_attributes()
+            return "unchanged"
+        try:
+            os.ftruncate(fd, 0)
+        except OSError:
+            remove_attributes()
+            return "unchanged"
+        if libc.fchflags(fd, info.st_flags | UF_COMPRESSED) != 0:
+            return restore()
+        restore_times()
+        if _read_back(path) != original:
+            return restore()
+        return "compressed"
+    finally:
+        os.close(fd)
+
+
 def prepare_thinned_binary(
     bin_path,
     architecture,
     transaction_directory,
+    compress=True,
 ):
     path = Path(bin_path)
     prepared_path = Path(transaction_directory) / (
@@ -373,6 +511,10 @@ def prepare_thinned_binary(
         raise RuntimeError(
             f"Failed to preserve metadata for {path}: {error}"
         ) from error
+
+    if compress and compress_file(str(prepared_path)) == "damaged":
+        prepared_path.unlink(missing_ok=True)
+        raise RuntimeError(f"Failed to compress thinned binary: {path}")
 
     return prepared_path
 
@@ -443,12 +585,13 @@ class SealedResourceIndex:
         return os.path.join(directory, "_CodeSignature", "CodeResources")
 
 
-def thin_app_transactionally(app_path, target_arch, will_resign=False):
+def thin_app_transactionally(app_path, target_arch, will_resign=False, compress=True):
     """Thin every universal binary in the app.
 
     Unless the caller re-signs the whole app afterwards (``will_resign``),
     binaries sealed as resources are skipped in signed apps and the result
-    is rolled back if the existing signature no longer verifies.
+    is rolled back if the existing signature no longer verifies. Thinned
+    binaries are stored compressed unless ``compress`` is false.
     """
     app = Path(app_path).expanduser().resolve(strict=True)
     transaction_directory = Path(
@@ -507,6 +650,7 @@ def thin_app_transactionally(app_path, target_arch, will_resign=False):
                 file_path,
                 architecture,
                 transaction_directory,
+                compress=compress,
             )
             prepared.append((file_path, prepared_path))
     except Exception:
@@ -1026,7 +1170,8 @@ def calculate_app_size(app_path):
             if os.path.islink(file_path):
                 continue
             try:
-                total_size += os.path.getsize(file_path)
+                # Space on disk, so compression is reflected.
+                total_size += os.lstat(file_path).st_blocks * 512
             except OSError:
                 continue
     return total_size
@@ -1107,6 +1252,16 @@ def parse_arguments():
         default=False,
         help=(
             "Do not launch the copied app before processing"
+        ),
+        action="store_true",
+    )
+    parser.add_argument(
+        "-Nc",
+        "--no_compress",
+        default=False,
+        help=(
+            "Do not store thinned binaries with macOS transparent "
+            "compression"
         ),
         action="store_true",
     )
@@ -1214,6 +1369,7 @@ def main():
                 output_app_dir,
                 args.arch,
                 will_resign=args.codesign,
+                compress=not args.no_compress,
             )
         except (OSError, RuntimeError) as error:
             Log.append(

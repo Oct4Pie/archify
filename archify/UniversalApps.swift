@@ -185,7 +185,8 @@ class UniversalApps {
         let keys: [URLResourceKey] = [
             .isRegularFileKey,
             .isSymbolicLinkKey,
-            .fileSizeKey
+            // Space on disk, so transparent compression is reflected.
+            .totalFileAllocatedSizeKey
         ]
         guard let enumerator = fileManager.enumerator(
             at: root,
@@ -205,7 +206,7 @@ class UniversalApps {
             else {
                 continue
             }
-            totalSize += UInt64(values.fileSize ?? 0)
+            totalSize += UInt64(values.totalFileAllocatedSize ?? 0)
         }
         return totalSize
     }
@@ -220,7 +221,8 @@ class UniversalApps {
         let keys: [URLResourceKey] = [
             .isRegularFileKey,
             .isSymbolicLinkKey,
-            .fileSizeKey
+            .fileSizeKey,
+            .totalFileAllocatedSizeKey
         ]
         guard let enumerator = fileManager.enumerator(
             at: root,
@@ -234,7 +236,7 @@ class UniversalApps {
             )
         }
 
-        var files: [(path: String, size: UInt64)] = []
+        var files: [(path: String, size: UInt64, allocatedSize: UInt64)] = []
         var totalSize: UInt64 = 0
         // Match ApplicationThinner: binaries sealed as resources are left
         // alone in signed apps, so they are not removable savings.
@@ -251,12 +253,13 @@ class UniversalApps {
             }
 
             let size = UInt64(values.fileSize ?? 0)
-            totalSize += size
+            let allocatedSize = UInt64(values.totalFileAllocatedSize ?? Int(size))
+            totalSize += allocatedSize
             // Slices in a universal binary are page aligned, so anything
             // smaller than a page cannot have a removable slice.
             if size >= Self.minimumUniversalBinarySize,
                !sealedResources.isSealedResource(url.path) {
-                files.append((url.path, size))
+                files.append((url.path, size, allocatedSize))
             }
         }
 
@@ -318,6 +321,13 @@ class UniversalApps {
                         architectureSizes: architectureSizes,
                         targetArchitecture: systemArch
                     )
+                    // Report space on disk: a binary macOS stores compressed
+                    // frees proportionally less than its slice sizes suggest.
+                    if file.allocatedSize < file.size, file.size > 0 {
+                        removable = UInt64(
+                            Double(removable) * Double(file.allocatedSize) / Double(file.size)
+                        )
+                    }
                 }
 
                 lock.lock()

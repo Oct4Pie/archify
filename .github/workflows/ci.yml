@@ -17,7 +17,7 @@ jobs:
       release_changed: ${{ steps.version.outputs.release_changed }}
       current_version: ${{ steps.version.outputs.current_version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
@@ -56,7 +56,7 @@ jobs:
   test-arm64:
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Environment
         run: |
@@ -105,7 +105,7 @@ jobs:
   test-intel:
     runs-on: macos-26-intel
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Environment
         run: |
@@ -139,12 +139,12 @@ jobs:
     if: needs.version-change.outputs.release_changed == 'true'
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Build universal Release validation artifact
         run: scripts/build-release.sh --unsigned --output "$RUNNER_TEMP/archify-release"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Archify-${{ needs.version-change.outputs.current_version }}-unsigned-release-validation
           path: ${{ runner.temp }}/archify-release/updates/

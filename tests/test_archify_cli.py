@@ -394,6 +394,55 @@ class ArchifyCLITests(unittest.TestCase):
         self.assertEqual(archify.compress_file(str(tiny)), "unchanged")
         self.assertEqual(tiny.read_bytes(), b"hello")
 
+    def test_compress_file_keeps_resource_forks_and_hard_links(self):
+        payload = bytes(index % 7 for index in range(300 * 1024))
+        forked = self.root / "forked"
+        forked.write_bytes(payload)
+        archify.subprocess.run(
+            ["/usr/bin/xattr", "-w", "com.apple.ResourceFork", "resource data", str(forked)],
+            check=True,
+        )
+        self.assertEqual(archify.compress_file(str(forked)), "unchanged")
+        fork = archify.subprocess.run(
+            ["/usr/bin/xattr", "-p", "com.apple.ResourceFork", str(forked)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(fork.stdout.strip(), "resource data")
+
+        linked = self.root / "linked"
+        linked.write_bytes(payload)
+        os.link(linked, self.root / "other-name")
+        self.assertEqual(archify.compress_file(str(linked)), "unchanged")
+        self.assertFalse(os.lstat(linked).st_flags & archify.UF_COMPRESSED)
+
+    def test_failed_install_and_restore_keeps_the_original(self):
+        app = self.make_app()
+        runner = app / "Contents" / "MacOS" / "Runner"
+        shutil.copyfile("/usr/bin/true", runner)
+        original = runner.read_bytes()
+        real_replace = os.replace
+
+        # Moving the original out succeeds; every later move fails, so the
+        # only copy of the original is the backup in the transaction folder.
+        def replace(source, destination):
+            if Path(source).resolve() == runner.resolve():
+                return real_replace(source, destination)
+            raise OSError("simulated failure")
+
+        with mock.patch.object(archify.os, "replace", side_effect=replace):
+            with self.assertRaises(RuntimeError) as raised:
+                archify.thin_app_transactionally(
+                    str(app),
+                    archify.machine_architecture(),
+                )
+
+        self.assertIn("Recovery data remains", str(raised.exception))
+        backups = list(app.parent.glob(".archify-transaction-*/backup-*"))
+        self.assertEqual(len(backups), 1)
+        self.assertEqual(backups[0].read_bytes(), original)
+
     def make_signed_app_with_sealed_resource(self):
         app = self.make_app()
         runner = app / "Contents" / "MacOS" / "Runner"

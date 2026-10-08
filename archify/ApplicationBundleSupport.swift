@@ -655,6 +655,11 @@ final class ApplicationThinner {
     private let fileManager: FileManager
     private let lipoURL: URL
     private let compressBinaries: Bool
+    /// Where transactions are staged instead of beside the app. The
+    /// privileged helper passes a directory only root can change, so no other
+    /// process can redirect the files it writes; it then also requires the
+    /// app path to be the app's real path.
+    private let stagingDirectory: URL?
     private let thinningQueue = DispatchQueue(
         label: "com.oct4pie.archify.thinning",
         qos: .userInitiated
@@ -663,11 +668,13 @@ final class ApplicationThinner {
     init(
         fileManager: FileManager = .default,
         lipoURL: URL = URL(fileURLWithPath: "/usr/bin/lipo"),
-        compressBinaries: Bool = true
+        compressBinaries: Bool = true,
+        stagingDirectory: URL? = nil
     ) {
         self.fileManager = fileManager
         self.lipoURL = lipoURL
         self.compressBinaries = compressBinaries
+        self.stagingDirectory = stagingDirectory
     }
 
     func thinApplication(
@@ -720,6 +727,14 @@ final class ApplicationThinner {
         }
         defer { close(appDirectoryFD) }
 
+        // Opening follows links in the folders above the app. With trusted
+        // staging, insist the app really lives at the path that was checked.
+        if stagingDirectory != nil,
+           Self.realPath(ofFileDescriptor: appDirectoryFD) != appPath {
+            completion(nil, "The application path is not a stable directory.")
+            return
+        }
+
         guard let transactionDirectory = createTransactionDirectory(
             forApplicationPath: appPath
         ) else {
@@ -730,7 +745,16 @@ final class ApplicationThinner {
         let transactionFD = openDirectoryNoFollow(
             atPath: transactionDirectory.path
         )
-        guard transactionFD >= 0 else {
+        guard transactionFD >= 0,
+              // Binaries are swapped in place, which needs one volume.
+              FileSystemUtilities.identity(
+                ofFileDescriptor: transactionFD,
+                requireDirectory: true
+              )?.device == appIdentity.device
+        else {
+            if transactionFD >= 0 {
+                close(transactionFD)
+            }
             cleanupTransactionDirectory(transactionDirectory)
             completion(nil, "Failed to secure the thinning transaction directory.")
             return
@@ -821,7 +845,9 @@ final class ApplicationThinner {
                     atPath: fullPath,
                     relativePath: relativePath,
                     architecture: architecture,
-                    transactionDirectory: transactionDirectory
+                    appDirectoryFD: appDirectoryFD,
+                    transactionDirectory: transactionDirectory,
+                    transactionFD: transactionFD
                 )
 
                 stateLock.lock()
@@ -953,21 +979,59 @@ final class ApplicationThinner {
         atPath path: String,
         relativePath: String,
         architecture: String,
-        transactionDirectory: URL
+        appDirectoryFD: Int32,
+        transactionDirectory: URL,
+        transactionFD: Int32
     ) -> (replacement: PreparedReplacement?, error: String?) {
+        // Read the binary only through a descriptor opened without following
+        // links inside the app, and run lipo on a private clone of it. If a
+        // folder in the app is swapped mid-way, Archify still never reads,
+        // or copies ownership from, a file outside the app.
+        let originalFD = openEntry(
+            relativePath: relativePath,
+            under: appDirectoryFD
+        )
+        guard originalFD >= 0 else {
+            return (nil, "A binary changed before it could be prepared.")
+        }
+        defer { close(originalFD) }
         guard let originalIdentity = FileSystemUtilities.identity(
-            atPath: path,
+            ofFileDescriptor: originalFD,
             requireRegularFile: true
         ) else {
             return (nil, "A binary changed before it could be prepared.")
         }
 
-        let preparedURL = transactionDirectory
-            .appendingPathComponent("prepared-\(UUID().uuidString)")
-        let preparedPath = preparedURL.path
+        let token = UUID().uuidString
+        let sourceName = "source-\(token)"
+        let preparedName = "prepared-\(token)"
+        guard cloneFile(originalFD, into: transactionFD, name: sourceName) else {
+            return (nil, "Failed to stage a binary for thinning.")
+        }
+        defer {
+            _ = unlinkEntry(
+                directoryFD: transactionFD,
+                name: sourceName,
+                removeDirectory: false
+            )
+        }
+
+        func discard(_ message: String) -> (replacement: PreparedReplacement?, error: String?) {
+            _ = unlinkEntry(
+                directoryFD: transactionFD,
+                name: preparedName,
+                removeDirectory: false
+            )
+            return (nil, message)
+        }
+
+        let sourcePath = transactionDirectory
+            .appendingPathComponent(sourceName).path
+        let preparedPath = transactionDirectory
+            .appendingPathComponent(preparedName).path
         let process = Process()
         process.executableURL = lipoURL
-        process.arguments = [path, "-thin", architecture, "-output", preparedPath]
+        process.arguments = [sourcePath, "-thin", architecture, "-output", preparedPath]
         let errorPipe = Pipe()
         process.standardError = errorPipe
 
@@ -978,8 +1042,7 @@ final class ApplicationThinner {
             errorOutput = errorPipe.fileHandleForReading.readDataToEndOfFile()
             process.waitUntilExit()
         } catch {
-            try? fileManager.removeItem(atPath: preparedPath)
-            return (nil, "Failed to launch the system architecture tool.")
+            return discard("Failed to launch the system architecture tool.")
         }
 
         guard process.terminationStatus == 0 else {
@@ -990,42 +1053,42 @@ final class ApplicationThinner {
             if let detail, !detail.isEmpty {
                 NSLog("lipo failed for %@: %@", path, detail)
             }
-            try? fileManager.removeItem(atPath: preparedPath)
-            return (nil, "Failed to thin one or more binaries in the application.")
+            return discard("Failed to thin one or more binaries in the application.")
         }
 
         guard architectures(atPath: preparedPath) == [architecture] else {
-            try? fileManager.removeItem(atPath: preparedPath)
-            return (nil, "The thinned binary failed architecture validation.")
+            return discard("The thinned binary failed architecture validation.")
         }
 
-        guard copyMetadata(from: path, to: preparedPath) else {
-            try? fileManager.removeItem(atPath: preparedPath)
-            return (nil, "Failed to preserve binary metadata while thinning.")
+        guard copyMetadata(
+            from: originalFD,
+            toEntry: preparedName,
+            in: transactionFD
+        ) else {
+            NSLog("Failed to copy metadata for %@", path)
+            return discard("Failed to preserve binary metadata while thinning.")
         }
 
         // Compress last: copying metadata from an uncompressed file onto a
         // compressed one clears its flag and leaves it reading as empty.
         if compressBinaries,
            TransparentCompression.compressFile(atPath: preparedPath) == .damaged {
-            try? fileManager.removeItem(atPath: preparedPath)
-            return (nil, "Failed to compress a thinned binary.")
+            return discard("Failed to compress a thinned binary.")
         }
 
-        guard FileSystemUtilities.identity(
-            atPath: path,
-            requireRegularFile: true
+        guard entryIdentity(
+            relativePath: relativePath,
+            under: appDirectoryFD
         ) == originalIdentity else {
-            try? fileManager.removeItem(atPath: preparedPath)
-            return (nil, "A binary changed while it was being prepared.")
+            return discard("A binary changed while it was being prepared.")
         }
 
         guard let preparedIdentity = FileSystemUtilities.identity(
-            atPath: preparedPath,
+            atDirectoryFD: transactionFD,
+            name: preparedName,
             requireRegularFile: true
         ) else {
-            try? fileManager.removeItem(atPath: preparedPath)
-            return (nil, "The prepared binary is not a stable regular file.")
+            return discard("The prepared binary is not a stable regular file.")
         }
 
         return (
@@ -1033,7 +1096,7 @@ final class ApplicationThinner {
                 originalPath: path,
                 relativePath: relativePath,
                 preparedPath: preparedPath,
-                preparedName: preparedURL.lastPathComponent,
+                preparedName: preparedName,
                 originalIdentity: originalIdentity,
                 preparedIdentity: preparedIdentity
             ),
@@ -1041,26 +1104,85 @@ final class ApplicationThinner {
         )
     }
 
-    private func copyMetadata(from source: String, to destination: String) -> Bool {
-        let result = source.withCString { sourcePointer in
-            destination.withCString { destinationPointer in
-                copyfile(
-                    sourcePointer,
-                    destinationPointer,
-                    nil,
-                    copyfile_flags_t(COPYFILE_METADATA)
-                )
-            }
+    /// Opens a file inside the app for reading without following any link.
+    private func openEntry(relativePath: String, under rootFD: Int32) -> Int32 {
+        guard let parent = openParentDirectory(
+            rootFD: rootFD,
+            relativePath: relativePath
+        ) else {
+            return -1
         }
+        defer { close(parent.fd) }
+        return parent.leaf.withCString { pointer in
+            openat(parent.fd, pointer, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+        }
+    }
 
-        if result != 0 {
-            NSLog(
-                "copyfile metadata failed for %@: %s",
-                source,
-                strerror(errno)
+    private func entryIdentity(
+        relativePath: String,
+        under rootFD: Int32
+    ) -> FileSystemIdentity? {
+        guard let parent = openParentDirectory(
+            rootFD: rootFD,
+            relativePath: relativePath
+        ) else {
+            return nil
+        }
+        defer { close(parent.fd) }
+        return FileSystemUtilities.identity(
+            atDirectoryFD: parent.fd,
+            name: parent.leaf,
+            requireRegularFile: true
+        )
+    }
+
+    /// Clones a file into the transaction directory, or copies it on volumes
+    /// that cannot clone.
+    private func cloneFile(
+        _ sourceFD: Int32,
+        into directoryFD: Int32,
+        name: String
+    ) -> Bool {
+        if name.withCString({ fclonefileat(sourceFD, directoryFD, $0, 0) }) == 0 {
+            return true
+        }
+        let destinationFD = name.withCString { pointer in
+            openat(
+                directoryFD,
+                pointer,
+                O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC,
+                0o600
             )
         }
-        return result == 0
+        guard destinationFD >= 0 else {
+            return false
+        }
+        defer { close(destinationFD) }
+        if fcopyfile(sourceFD, destinationFD, nil, copyfile_flags_t(COPYFILE_DATA)) == 0 {
+            return true
+        }
+        _ = unlinkEntry(directoryFD: directoryFD, name: name, removeDirectory: false)
+        return false
+    }
+
+    private func copyMetadata(
+        from sourceFD: Int32,
+        toEntry name: String,
+        in directoryFD: Int32
+    ) -> Bool {
+        let destinationFD = name.withCString { pointer in
+            openat(directoryFD, pointer, O_RDWR | O_NOFOLLOW | O_CLOEXEC)
+        }
+        guard destinationFD >= 0 else {
+            return false
+        }
+        defer { close(destinationFD) }
+        return fcopyfile(
+            sourceFD,
+            destinationFD,
+            nil,
+            copyfile_flags_t(COPYFILE_METADATA)
+        ) == 0
     }
 
     private func hasValidCodeSignature(
@@ -1196,9 +1318,21 @@ final class ApplicationThinner {
     private func createTransactionDirectory(
         forApplicationPath appPath: String
     ) -> URL? {
-        let appURL = URL(fileURLWithPath: appPath, isDirectory: true)
-        let directory = appURL
-            .deletingLastPathComponent()
+        let parent: URL
+        if let stagingDirectory {
+            guard Self.prepareTrustedDirectory(stagingDirectory) else {
+                NSLog(
+                    "Refusing untrusted staging directory %@",
+                    stagingDirectory.path
+                )
+                return nil
+            }
+            parent = stagingDirectory
+        } else {
+            parent = URL(fileURLWithPath: appPath, isDirectory: true)
+                .deletingLastPathComponent()
+        }
+        let directory = parent
             .appendingPathComponent(
                 ".archify-transaction-\(UUID().uuidString)",
                 isDirectory: true
@@ -1219,6 +1353,92 @@ final class ApplicationThinner {
             )
             return nil
         }
+    }
+
+    /// Creates `directory` if needed and confirms that only this user or root
+    /// can change it or any directory above it, so no other process can swap
+    /// it for a link while files are staged there.
+    static func prepareTrustedDirectory(_ directory: URL) -> Bool {
+        let path = directory.standardized.path
+        guard path.hasPrefix("/") else {
+            return false
+        }
+        if mkdir(path, 0o700) != 0, errno != EEXIST {
+            return false
+        }
+
+        let user = geteuid()
+        var current = ""
+        let components = [""] + path.split(separator: "/").map(String.init)
+        for (index, component) in components.enumerated() {
+            current = index == 0 ? "/" : (current as NSString)
+                .appendingPathComponent(component)
+            var info = stat()
+            guard lstat(current, &info) == 0,
+                  // Rejects symbolic links as well.
+                  info.st_mode & S_IFMT == S_IFDIR,
+                  info.st_uid == 0 || info.st_uid == user
+            else {
+                return false
+            }
+            guard !Self.aclAllowsOthersToChange(current) else {
+                return false
+            }
+            if index == components.count - 1 {
+                guard info.st_uid == user, info.st_mode & 0o077 == 0 else {
+                    return false
+                }
+            } else if info.st_mode & 0o022 != 0, info.st_mode & S_ISVTX == 0 {
+                return false
+            }
+        }
+        return true
+    }
+
+    /// Whether an access control list lets anyone add, remove or rename
+    /// entries in the directory, or change its permissions or owner. Deny
+    /// entries, such as the one macOS puts on "/", are harmless.
+    private static func aclAllowsOthersToChange(_ path: String) -> Bool {
+        guard let acl = acl_get_link_np(path, ACL_TYPE_EXTENDED) else {
+            // No ACL, or one that cannot be read.
+            return errno != ENOENT
+        }
+        defer { acl_free(UnsafeMutableRawPointer(acl)) }
+
+        let risky: [acl_perm_t] = [
+            ACL_ADD_FILE, ACL_ADD_SUBDIRECTORY, ACL_DELETE_CHILD, ACL_DELETE,
+            ACL_WRITE_SECURITY, ACL_CHANGE_OWNER
+        ]
+        var entry: acl_entry_t?
+        var which = ACL_FIRST_ENTRY.rawValue
+        while acl_get_entry(acl, which, &entry) == 0, let current = entry {
+            which = ACL_NEXT_ENTRY.rawValue
+            var tag = ACL_UNDEFINED_TAG
+            var permissions: acl_permset_t?
+            guard acl_get_tag_type(current, &tag) == 0 else {
+                return true
+            }
+            guard tag == ACL_EXTENDED_ALLOW else {
+                continue
+            }
+            guard acl_get_permset(current, &permissions) == 0,
+                  let permissions
+            else {
+                return true
+            }
+            if risky.contains(where: { acl_get_perm_np(permissions, $0) == 1 }) {
+                return true
+            }
+        }
+        return false
+    }
+
+    static func realPath(ofFileDescriptor fd: Int32) -> String? {
+        var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
+        guard fcntl(fd, F_GETPATH, &buffer) == 0 else {
+            return nil
+        }
+        return String(cString: buffer)
     }
 
     private func cleanupTransactionDirectory(_ directory: URL) {
@@ -1468,9 +1688,15 @@ enum TransparentCompression {
         guard fstat(fd, &info) == 0,
               info.st_mode & S_IFMT == S_IFREG,
               info.st_flags & compressedFlag == 0,
+              // Other links would change too.
+              info.st_nlink == 1,
               info.st_size > 0,
               // Chunk offsets are 32-bit.
-              info.st_size < Int64(UInt32.max / 2)
+              info.st_size < Int64(UInt32.max / 2),
+              // Compression stores its data in these attributes, so an
+              // existing resource fork would be overwritten.
+              !hasAttribute(fd, resourceForkName),
+              !hasAttribute(fd, headerName)
         else {
             return .unchanged
         }
@@ -1489,10 +1715,14 @@ enum TransparentCompression {
         withUnsafeBytes(of: lzfseResourceForkType.littleEndian) { header += $0 }
         withUnsafeBytes(of: UInt64(size).littleEndian) { header += $0 }
 
-        guard fsetxattr(fd, resourceForkName, fork, fork.count, 0, XATTR_SHOWCOMPRESSION) == 0,
-              fsetxattr(fd, headerName, header, header.count, 0, XATTR_SHOWCOMPRESSION) == 0
-        else {
-            removeCompressionAttributes(fd)
+        // XATTR_CREATE never replaces an attribute that appeared since the
+        // check; on failure only the attributes created here are removed.
+        let create = XATTR_SHOWCOMPRESSION | XATTR_CREATE
+        guard fsetxattr(fd, resourceForkName, fork, fork.count, 0, create) == 0 else {
+            return .unchanged
+        }
+        guard fsetxattr(fd, headerName, header, header.count, 0, create) == 0 else {
+            fremovexattr(fd, resourceForkName, XATTR_SHOWCOMPRESSION)
             return .unchanged
         }
 
@@ -1510,6 +1740,12 @@ enum TransparentCompression {
             return restore(fd, path: path, original: original, info: info)
         }
         return .compressed
+    }
+
+    /// Anything but a clear "no such attribute" counts as present.
+    private static func hasAttribute(_ fd: Int32, _ name: String) -> Bool {
+        fgetxattr(fd, name, nil, 0, 0, XATTR_SHOWCOMPRESSION) >= 0
+            || errno != ENOATTR
     }
 
     private static func resourceFork(for data: [UInt8]) -> [UInt8]? {

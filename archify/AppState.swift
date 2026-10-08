@@ -12,112 +12,104 @@ import Foundation
 class AppState: ObservableObject {
     @Published var inputDir: String = ""
     @Published var outputDir: String = ""
+    /// Name for the copy when the app's own name is taken at the
+    /// destination ("Keep Both"); nil uses the app's name.
+    @Published var outputName: String?
+    /// The copy the latest run created, so the screen can show it as the
+    /// result rather than as a name conflict.
+    @Published var lastCopyPath: String?
     @Published var selectedArch: String = ""
     @Published var useCodesign: Bool = false
     @Published var useLDID: Bool = false
     @Published var ldidPath: String = ""
     @Published var entitlements: Bool = false
-    @Published var launchSign: Bool = true
+    @Published var launchSign: Bool = false
     @Published var logMessages: String = ""
     @Published var initialAppSize: UInt64 = 0
     @Published var finalAppSize: UInt64 = 0
     @Published var isProcessing: Bool = false
     
-    let architectures = ["arm64", "arm64e", "x86_64", "i386"]
-    let LIPO = "/usr/bin/lipo"
-    let FILE = "/usr/bin/file"
+    let architectures = ["arm64", "arm64e", "x86_64"]
     
     private var logBuffer: [String] = []
-    private var logQueue = DispatchQueue(label: "logQueue", attributes: .concurrent)
-    private var logTimer: Timer?
-    
-    init() {
-        startLogTimer()
-    }
-    
-    deinit {
-        logTimer?.invalidate()
-    }
+    private let logQueue = DispatchQueue(label: "com.oct4pie.archify.logs")
+    private var logFlushScheduled = false
     
     func appendLog(_ message: String) {
-        logQueue.async(flags: .barrier) {
+        logQueue.async {
             self.logBuffer.append(message)
-        }
-    }
-    
-    private func startLogTimer() {
-        logTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
-            self.updateLogMessages()
-        }
-    }
-    
-    private func updateLogMessages() {
-        var messages: [String] = []
-        logQueue.sync {
-            messages = self.logBuffer
-            self.logBuffer.removeAll()
-        }
-        DispatchQueue.main.async {
-            if !messages.isEmpty {
-                self.logMessages += messages.joined(separator: "\n") + "\n"
+            guard !self.logFlushScheduled else { return }
+            self.logFlushScheduled = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self.flushLogMessages()
             }
         }
     }
     
-    func toDictionary() -> [String: Any] {
-        return [
-            "inputDir": inputDir,
-            "outputDir": outputDir,
-            "selectedArch": selectedArch,
-            "useLDID": useLDID,
-            "ldidPath": ldidPath,
-            "entitlements": entitlements,
-            "useCodesign": useCodesign,
-            "launchSign": launchSign,
-            "isProcessing": isProcessing,
-            "initialAppSize": initialAppSize,
-            "finalAppSize": finalAppSize,
-            "logMessages": logMessages,
-        ]
-    }
-    
-    static func fromDictionary(_ dict: [String: Any]) -> AppState {
-        let appState = AppState()
-        appState.inputDir = dict["inputDir"] as? String ?? ""
-        appState.outputDir = dict["outputDir"] as? String ?? ""
-        appState.selectedArch = dict["selectedArch"] as? String ?? ""
-        appState.useLDID = dict["useLDID"] as? Bool ?? false
-        appState.ldidPath = dict["ldidPath"] as? String ?? ""
-        appState.entitlements = dict["entitlements"] as? Bool ?? false
-        appState.useCodesign = dict["useCodesign"] as? Bool ?? false
-        appState.launchSign = dict["launchSign"] as? Bool ?? false
-        appState.isProcessing = dict["isProcessing"] as? Bool ?? false
-        appState.initialAppSize = dict["initialAppSize"] as? UInt64 ?? 0
-        appState.finalAppSize = dict["finalAppSize"] as? UInt64 ?? 0
-        appState.logMessages = dict["logMessages"] as? String ?? ""
-        return appState
+    private func flushLogMessages() {
+        let messages: [String] = logQueue.sync {
+            let messages = self.logBuffer
+            self.logBuffer.removeAll()
+            self.logFlushScheduled = false
+            return messages
+        }
+        if !messages.isEmpty {
+            logMessages += messages.joined(separator: "\n") + "\n"
+        }
     }
     
     func findLdid() -> String? {
         if !ldidPath.isEmpty {
-            return ldidPath
+            return isCompatibleLdidExecutable(atPath: ldidPath) ? ldidPath : nil
         }
-        
+
         let pathEnv = ProcessInfo.processInfo.environment["PATH"] ?? ""
-        let paths = pathEnv.split(separator: ":").map(String.init)
-        
+        var paths = pathEnv.split(separator: ":").map(String.init)
+        for commonPath in ["/opt/homebrew/bin", "/usr/local/bin"] where !paths.contains(commonPath) {
+            paths.append(commonPath)
+        }
+
         for path in paths {
             let ldidFullPath = (path as NSString).appendingPathComponent("ldid")
-            if FileManager.default.fileExists(atPath: ldidFullPath) {
+            if isCompatibleLdidExecutable(atPath: ldidFullPath) {
                 return ldidFullPath
             }
         }
-        return Bundle.main.path(forResource: "ldid", ofType: nil)
+        return nil
+    }
+
+    func isCompatibleLdidExecutable(atPath path: String) -> Bool {
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: path),
+              fileManager.isExecutableFile(atPath: path)
+        else {
+            return false
+        }
+
+        guard let architectures = MachOInspector.architectures(
+            atPath: path
+        ) else {
+            return false
+        }
+
+        return ArchitectureUtilities.executableSupportsHost(
+            architectures: architectures,
+            hostArchitecture: ProcessInfo.processInfo.machineArchitecture
+        )
     }
     
     func processApp() {
+        // Read the user's choices on the main thread, where SwiftUI writes
+        // them, before handing the work to a background queue.
+        let inputDir = self.inputDir
+        let outputDir = self.outputDir
+        let selectedArch = self.selectedArch
+        let entitlements = self.entitlements
+        let launchSign = self.launchSign
+        let outputName = self.outputName
+
         DispatchQueue.global().async {
-            guard !self.inputDir.isEmpty, !self.outputDir.isEmpty else {
+            guard !inputDir.isEmpty, !outputDir.isEmpty else {
                 DispatchQueue.main.async {
                     self.appendLog("Please select both input and output directories.")
                     self.isProcessing = false
@@ -128,133 +120,104 @@ class AppState: ObservableObject {
             
             let fileOps = FileOperations(appState: self)
             do {
-                if let duplicatedDir = try fileOps.duplicateApp(
-                    appDir: self.inputDir, outputDir: self.outputDir) {
-                    self.appendLog("Created copy at \(duplicatedDir)")
-                    let universalApps = UniversalApps()
-                    self.initialAppSize = universalApps.calculateDirectorySize(path: self.inputDir)
-                    self.appendLog("Initial App Size: \(self.initialAppSize) bytes")
-                    self.appendLog("Processing...")
-                    
-                    if self.launchSign {
-                        self.openApp(at: duplicatedDir) { success in
-                            if success {
-                                self.appendLog("App loaded successfully, now closing it.")
-                                
-                                self.requestDirectoryAccess(directory: duplicatedDir) {
-                                    fileOps.extractAndSignBinaries(
-                                        in: duplicatedDir, targetArch: self.selectedArch, noSign: false,
-                                        noEntitlements: !self.entitlements)
-                                }
-                            } else {
-                                self.appendLog("Failed to open the app.")
-                                self.isProcessing = false
-                            }
-                        }
-                    } else {
-                        self.requestDirectoryAccess(directory: duplicatedDir) {
-                            fileOps.extractAndSignBinaries(
-                                in: duplicatedDir, targetArch: self.selectedArch, noSign: false,
-                                noEntitlements: !self.entitlements)
+                let duplicatedDir = try fileOps.duplicateApp(
+                    appDir: inputDir,
+                    outputDir: outputDir,
+                    named: outputName
+                )
+
+                self.appendLog("Created copy at \(duplicatedDir)")
+                DispatchQueue.main.async {
+                    self.lastCopyPath = duplicatedDir
+                }
+                let initialSize = UniversalApps().calculateDirectorySize(path: inputDir)
+                DispatchQueue.main.async {
+                    self.initialAppSize = initialSize
+                }
+                self.appendLog("Initial App Size: \(initialSize) bytes")
+                self.appendLog("Processing...")
+
+                let processDuplicatedApp = {
+                    fileOps.extractAndSignBinaries(
+                        in: duplicatedDir,
+                        targetArch: selectedArch,
+                        noSign: false,
+                        noEntitlements: !entitlements
+                    )
+                }
+
+                if launchSign {
+                    self.openApp(at: duplicatedDir) { success in
+                        if success {
+                            self.appendLog("App launched and closed successfully.")
+                            DispatchQueue.global().async(execute: processDuplicatedApp)
+                        } else {
+                            self.appendLog("Failed to launch or close the copied app.")
+                            self.isProcessing = false
                         }
                     }
                 } else {
-                    self.appendLog("Failed to duplicate app.")
+                    processDuplicatedApp()
                 }
             } catch {
                 self.appendLog("Failed to duplicate app: \(error.localizedDescription)")
-            }
-        }
-    }
-    
-    private func requestDirectoryAccess(directory: String, completion: @escaping () -> Void) {
-        DispatchQueue.main.async {
-            let openPanel = NSOpenPanel()
-            openPanel.message = "Please select the duplicated .app directory."
-            openPanel.prompt = "Select"
-            openPanel.canChooseFiles = true
-            openPanel.canChooseDirectories = false
-            openPanel.allowsMultipleSelection = false
-            openPanel.directoryURL = URL(fileURLWithPath: directory)
-            
-            openPanel.begin { response in
-                if response == .OK {
-                    if let selectedURL = openPanel.url {
-                        self.outputDir = selectedURL.path
-                        completion()
-                    } else {
-                        self.appendLog("Directory access not granted.")
-                    }
-                } else {
-                    self.appendLog("Directory access not granted.")
+                DispatchQueue.main.async {
+                    self.lastCopyPath = nil
+                    self.isProcessing = false
                 }
             }
         }
     }
     
     private func openApp(at path: String, completion: @escaping (Bool) -> Void) {
-        DispatchQueue.global().async {
-            let workspace = NSWorkspace.shared
-            let appURL = URL(fileURLWithPath: path)
-            let configuration = NSWorkspace.OpenConfiguration()
-            
-            workspace.openApplication(at: appURL, configuration: configuration) { app, error in
-                if let error = error {
-                    self.appendLog("Failed to launch app: \(error.localizedDescription)")
-                    completion(false)
+        let workspace = NSWorkspace.shared
+        let appURL = URL(fileURLWithPath: path)
+        let configuration = NSWorkspace.OpenConfiguration()
+
+        workspace.openApplication(at: appURL, configuration: configuration) { app, error in
+            if let error {
+                self.appendLog("Failed to launch app: \(error.localizedDescription)")
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+
+            guard let app else {
+                self.appendLog("Failed to obtain app reference.")
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+
+            // Preserve the existing cache-warmup delay, but retain the actual
+            // NSRunningApplication object. Killing a remembered PID later can
+            // target an unrelated process if the launched app exits and macOS
+            // reuses that PID.
+            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 10) {
+                if app.isTerminated {
+                    DispatchQueue.main.async { completion(true) }
                     return
                 }
-                
-                guard let app = app else {
-                    self.appendLog("Failed to obtain app reference.")
-                    completion(false)
+
+                _ = app.terminate()
+                if self.waitForTermination(of: app, timeout: 5) {
+                    DispatchQueue.main.async { completion(true) }
                     return
                 }
-                
-                let pid = app.processIdentifier
-                sleep(10)
-                if self.isProcessRunning(pid: pid) {
-                    // Wait for the app to terminate
-                    var attempts = 0
-                    while self.isProcessRunning(pid: pid) && attempts < 10 {
-                        self.terminateProcess(pid: pid, sigk: false)
-                        sleep(1)
-                        attempts += 1
-                    }
-                    
-                    attempts = 0
-                    while self.isProcessRunning(pid: pid) && attempts < 10 {
-                        self.terminateProcess(pid: pid, sigk: true)
-                        sleep(1)
-                        attempts += 1
-                    }
-                    
-                    sleep(2)
-                    completion(!self.isProcessRunning(pid: pid))
-                } else {
-                    completion(false)
-                }
+
+                _ = app.forceTerminate()
+                let terminated = self.waitForTermination(of: app, timeout: 5)
+                DispatchQueue.main.async { completion(terminated) }
             }
         }
     }
-    
-    private func isProcessRunning(pid: pid_t) -> Bool {
-        let process = Process()
-        process.launchPath = "/bin/ps"
-        process.arguments = ["-p", "\(pid)"]
-        
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.launch()
-        process.waitUntilExit()
-        
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        let output = String(data: data, encoding: .utf8) ?? ""
-        
-        return output.contains("\(pid)")
-    }
-    
-    private func terminateProcess(pid: pid_t, sigk: Bool) {
-        kill(pid, sigk ? SIGKILL : SIGTERM)
+
+    private func waitForTermination(
+        of app: NSRunningApplication,
+        timeout: TimeInterval
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !app.isTerminated, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        return app.isTerminated
     }
 }

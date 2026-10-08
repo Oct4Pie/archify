@@ -9,12 +9,8 @@
 	</dict>
 	<key>SMAuthorizedClients</key>
 	<array>
-		<string>identifier &quot;com.oct4pie.archify&quot; and anchor apple generic and certificate leaf[subject.CN] = &quot;Apple Distribution: Mehdi Hajmollaahmad Naraghi (9827C97648)&quot; and certificate 1[field.1.2.840.113635.100.6.2.1] /* exists */</string>
+		<string>$(ARCHIFY_CLIENT_CODE_REQUIREMENT)</string>
 	</array>
-	<key>CFBundleShortVersionString</key>
-<string>6.1</string>
-<key>CFBundleVersion</key>
-<string>6.1</string>
 
 </dict>
 </plist>

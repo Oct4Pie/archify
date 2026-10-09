@@ -5,271 +5,535 @@
 //  Created by oct4pie on 6/24/24.
 //
 
-import Foundation
+import AppKit
 import Combine
+import Foundation
 
+/// The localizations found in one app, grouped by language.
 struct AppLanguage: Identifiable {
     let id = UUID()
     let appName: String
-    var languages: [String]
-    var languagePaths: [String: [String]] // Maps language names to a list of their full paths
-    var selectedLanguages: Set<String> = []
+    let appPath: String
+    /// Language key → the app's folders for that language.
+    var languagePaths: [String: [String]]
+    /// Folder path → bytes it occupies on disk.
+    var folderSizes: [String: UInt64]
+    /// Language keys the app or the user needs; never removed.
+    var protectedLanguages: Set<String>
+
+    var languages: [String] { languagePaths.keys.sorted() }
+
+    func size(of language: String) -> UInt64 {
+        (languagePaths[language] ?? []).reduce(0) { $0 + (folderSizes[$1] ?? 0) }
+    }
 }
 
-class LanguageCleaner: ObservableObject {
-    @Published var apps: [AppLanguage] = []
-    @Published var uniqueLanguages: [String] = []
-    @Published var selectedApps: Set<UUID> = []
+/// One language across every scanned app, as shown in the list.
+struct LanguageSummary: Identifiable {
+    let key: String
+    let displayName: String
+    /// Apps that would lose this language if it were selected.
+    let removableAppCount: Int
+    let removableSize: UInt64
+    var id: String { key }
+}
+
+final class LanguageCleaner: ObservableObject {
+    private struct RemovalItem {
+        let appID: UUID
+        let appPath: String
+        let language: String
+        let path: String
+        let size: UInt64
+    }
+
+    @Published private(set) var apps: [AppLanguage] = []
+    /// Languages the user chose to remove.
     @Published var selectedLanguages: Set<String> = []
-    @Published var expandedApps: [UUID: Bool] = [:]
-    @Published var isScanning: Bool = false
-    @Published var isRemoving: Bool = false
-    @Published var progress: Double = 0.0
-    @Published var searchText: String = ""
-    @Published var removedFilesLog: String = ""
-    @Published var currentlyScanningApp: String = ""
-    @Published var currentlyRemovingFile: String = ""
-    
-    var filteredApps: [AppLanguage] {
-        if searchText.isEmpty {
-            return apps
+    /// Apps the user chose to leave unchanged.
+    @Published var excludedApps: Set<UUID> = []
+    @Published private(set) var isScanning = false
+    @Published private(set) var isRemoving = false
+    @Published private(set) var progress = 0.0
+    @Published private(set) var removedFilesLog = ""
+    @Published private(set) var currentlyScanningApp = ""
+    @Published private(set) var currentlyRemovingFile = ""
+    @Published private(set) var removalFailures: [(path: String, reason: String)] = []
+    /// Result of the latest removal, shown until the next one starts.
+    @Published private(set) var lastRemoval: (folders: Int, bytes: UInt64)?
+    /// Folders a canceled removal did not start; still selected.
+    @Published private(set) var notStartedCount = 0
+    /// The latest scan was canceled, so results cover only part of the apps.
+    @Published private(set) var scanWasStopped = false
+    @Published private(set) var isQuittingApps = false
+    /// Pause/Resume and Cancel for scanning and removal.
+    let control = RunControl()
+
+    private let fileManager = FileManager.default
+    private let applicationDiscovery = ApplicationDiscovery()
+    private let languageDiscovery = LanguageResourceDiscovery()
+    private let preferredLanguageCodes = LanguageProtection.preferredLanguageCodes()
+
+    // MARK: - What the screen shows
+
+    /// Removable languages, largest savings first.
+    var languageSummaries: [LanguageSummary] {
+        var appCounts: [String: Int] = [:]
+        var sizes: [String: UInt64] = [:]
+        for app in apps {
+            for language in app.languages where !isProtected(language, in: app) {
+                appCounts[language, default: 0] += 1
+                sizes[language, default: 0] += app.size(of: language)
+            }
+        }
+        return appCounts.keys
+            .map {
+                LanguageSummary(
+                    key: $0,
+                    displayName: LanguageProtection.displayName(forKey: $0),
+                    removableAppCount: appCounts[$0] ?? 0,
+                    removableSize: sizes[$0] ?? 0
+                )
+            }
+            .sorted {
+                $0.removableSize == $1.removableSize
+                    ? $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending
+                    : $0.removableSize > $1.removableSize
+            }
+    }
+
+    /// The user's own languages, which are kept in every app.
+    var keptLanguageNames: [String] {
+        let keys = Set(apps.flatMap(\.languages)).filter(isUserLanguage)
+        var seen = Set<String>()
+        return keys
+            .map { LanguageProtection.displayName(forKey: LanguageProtection.languageCode($0)) }
+            .filter { seen.insert($0).inserted }
+            .sorted()
+    }
+
+    var totalRemovableSize: UInt64 {
+        languageSummaries.reduce(0) { $0 + $1.removableSize }
+    }
+
+    /// Apps that would change with the current language selection.
+    var affectedApps: [AppLanguage] {
+        apps.filter { removableSize(in: $0, ignoringExclusion: true) > 0 }
+    }
+
+    func removableSize(in app: AppLanguage, ignoringExclusion: Bool = false) -> UInt64 {
+        guard ignoringExclusion || !excludedApps.contains(app.id) else { return 0 }
+        return app.languages
+            .filter { selectedLanguages.contains($0) && !isProtected($0, in: app) }
+            .reduce(0) { $0 + app.size(of: $1) }
+    }
+
+    var selectedSize: UInt64 {
+        apps.reduce(0) { $0 + removableSize(in: $1) }
+    }
+
+    var selectedAppCount: Int {
+        apps.filter { removableSize(in: $0) > 0 }.count
+    }
+
+    var selectedFolderCount: Int { selectedRemovalItems().count }
+
+    func isProtected(_ language: String, in app: AppLanguage) -> Bool {
+        isUserLanguage(language) || app.protectedLanguages.contains(language)
+    }
+
+    /// Base and the user's preferred languages are kept in every app.
+    private func isUserLanguage(_ language: String) -> Bool {
+        language.caseInsensitiveCompare("Base") == .orderedSame
+            || preferredLanguageCodes.contains(LanguageProtection.languageCode(language))
+    }
+
+    // MARK: - Selection
+
+    func toggleLanguage(_ key: String) {
+        if selectedLanguages.contains(key) {
+            selectedLanguages.remove(key)
         } else {
-            return apps.filter { $0.appName.lowercased().contains(searchText.lowercased()) }
+            selectedLanguages.insert(key)
         }
     }
-    
-    var isAllLanguagesSelected: Bool {
-        let selectableLanguages = uniqueLanguages.filter { !shouldGrayOutLanguage($0) }
-        return selectedLanguages.count == selectableLanguages.count
+
+    func selectAllLanguages() {
+        selectedLanguages = Set(languageSummaries.map(\.key))
     }
-    
-    var isRemoveButtonEnabled: Bool {
-        return !selectedLanguages.isEmpty || apps.contains(where: { !$0.selectedLanguages.isEmpty })
+
+    func clearLanguages() {
+        selectedLanguages.removeAll()
     }
-    
-    func isAllLanguagesSelected(in app: AppLanguage) -> Bool {
-        let selectableLanguages = app.languages.filter { !shouldGrayOutLanguage($0) }
-        return app.selectedLanguages.count == selectableLanguages.count
+
+    func includeAllApps() {
+        excludedApps.removeAll()
     }
-    
-    func isLanguageSelectedInApp(_ language: String, app: AppLanguage) -> Bool {
-        return app.selectedLanguages.contains(language) || selectedLanguages.contains(language)
+
+    func excludeAllApps() {
+        excludedApps = Set(affectedApps.map(\.id))
     }
-    
-    func shouldGrayOutLanguage(_ language: String) -> Bool {
-        return language == "Base"
-    }
-    
-    func getApplicationFolderCount() -> Int {
-        let fileManager = FileManager.default
-        let applicationPath = "/Applications"
-        
-        do {
-            let contents = try fileManager.contentsOfDirectory(atPath: applicationPath)
-            let folderCount = contents.filter { item in
-                var isDir: ObjCBool = false
-                let fullPath = (applicationPath as NSString).appendingPathComponent(item)
-                return fileManager.fileExists(atPath: fullPath, isDirectory: &isDir) && isDir.boolValue
-            }.count
-            return folderCount
-        } catch {
-            print("Failed to get contents of /Applications: \(error.localizedDescription)")
-            return 0
+
+    func toggleApp(_ id: UUID) {
+        if excludedApps.contains(id) {
+            excludedApps.remove(id)
+        } else {
+            excludedApps.insert(id)
         }
     }
-    
+
+    // MARK: - Open apps
+
+    /// Apps with selected languages that are open right now.
+    func runningAffectedApps() -> [NSRunningApplication] {
+        RunningApplications.running(in: selectedAppPaths)
+    }
+
+    /// Asks the open apps to quit, then removes. Apps that stay open (for
+    /// example with unsaved work) are skipped, not changed.
+    func quitAppsThenRemove(_ runningApps: [NSRunningApplication]) {
+        isQuittingApps = true
+        RunningApplications.quit(runningApps) { [weak self] in
+            self?.isQuittingApps = false
+            self?.removeSelected()
+        }
+    }
+
+    func removeSkippingOpenApps() {
+        let open = RunningApplications.runningAppPaths(in: selectedAppPaths)
+        excludedApps.formUnion(apps.filter { open.contains($0.appPath) }.map(\.id))
+        removeSelected()
+    }
+
+    /// How many affected apps are open, counting each app once.
+    var openAffectedAppCount: Int {
+        RunningApplications.runningAppPaths(in: selectedAppPaths).count
+    }
+
+    private var selectedAppPaths: [String] {
+        apps.filter { removableSize(in: $0) > 0 }.map(\.appPath)
+    }
+
+    // MARK: - Scanning
+
     func scanForAppsAndLanguages() {
+        guard !isScanning, !isRemoving else { return }
         isScanning = true
-        progress = 0.0
-        let applicationPath = "/Applications"
-        let defaultMacOSApps = defaultMacOSApps()
-        var tempApps: [AppLanguage] = []
-        var allLanguages: Set<String> = []
-        var appLanguages: [String: [String: [String]]] = [:]
-        let totalCount = getApplicationFolderCount()
-        var processedCount = 0
-        
-        DispatchQueue.global(qos: .background).async {
-            do {
-                let localFileManager = FileManager.default
-                let contents = try localFileManager.contentsOfDirectory(atPath: applicationPath)
-                for item in contents {
-                    let fullPath = (applicationPath as NSString).appendingPathComponent(item)
-                    var isDir: ObjCBool = false
-                    if localFileManager.fileExists(atPath: fullPath, isDirectory: &isDir), isDir.boolValue {
-                        processedCount += 1
-                        let appName = item
-                        // Skip the app if it's in the default MacOS apps set
-                        if defaultMacOSApps.contains(appName) {
-                            continue
-                        }
-                        DispatchQueue.main.async {
-                            self.currentlyScanningApp = "Scanning \(appName)"
-                        }
-                        if appLanguages[appName] == nil {
-                            appLanguages[appName] = [:]
-                        }
-                        if let enumerator = localFileManager.enumerator(atPath: fullPath) {
-                            for case let path as String in enumerator {
-                                if path.hasSuffix(".lproj") {
-                                    let language = (path as NSString).lastPathComponent.replacingOccurrences(of: ".lproj", with: "")
-                                    if appLanguages[appName]?[language] == nil {
-                                        appLanguages[appName]?[language] = []
-                                    }
-                                    appLanguages[appName]?[language]?.append((fullPath as NSString).appendingPathComponent(path))
-                                    allLanguages.insert(language)
-                                }
-                            }
-                        }
-                        DispatchQueue.main.async {
-                            self.progress = Double(processedCount) / Double(totalCount)
-                        }
+        scanWasStopped = false
+        control.begin()
+        progress = 0
+        currentlyScanningApp = ""
+        selectedLanguages.removeAll()
+        excludedApps.removeAll()
+        lastRemoval = nil
+        removalFailures = []
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            let excludedNames = defaultMacOSApps()
+            let appPaths = self.applicationDiscovery
+                .discoverApplicationPaths(in: ApplicationDiscovery.defaultRoots())
+                .filter { !excludedNames.contains(URL(fileURLWithPath: $0).lastPathComponent) }
+            let totalCount = appPaths.count
+            var scannedApps: [AppLanguage] = []
+            let queue = OperationQueue()
+            queue.qualityOfService = .userInitiated
+            queue.maxConcurrentOperationCount = max(
+                1,
+                min(4, ProcessInfo.processInfo.activeProcessorCount)
+            )
+            let lock = NSLock()
+            var completedCount = 0
+
+            for appPath in appPaths {
+                queue.addOperation {
+                    // Pausing waits here; canceling skips the apps not yet
+                    // scanned and keeps the results so far.
+                    guard self.control.checkpoint() else { return }
+                    let appName = URL(fileURLWithPath: appPath).lastPathComponent
+                    let app = self.scanApp(appPath)
+
+                    lock.lock()
+                    if let app {
+                        scannedApps.append(app)
+                    }
+                    completedCount += 1
+                    let completed = completedCount
+                    lock.unlock()
+
+                    DispatchQueue.main.async {
+                        self.currentlyScanningApp = appName
+                        self.progress = totalCount == 0
+                            ? 1
+                            : Double(completed) / Double(totalCount)
                     }
                 }
-            } catch {
-                print("Failed to scan /Applications: \(error.localizedDescription)")
             }
-            
-            for (appName, languages) in appLanguages {
-                tempApps.append(AppLanguage(appName: appName, languages: Array(languages.keys).sorted(), languagePaths: languages.mapValues { $0 }))
+
+            queue.waitUntilAllOperationsAreFinished()
+            scannedApps.sort {
+                $0.appName == $1.appName
+                    ? $0.appPath < $1.appPath
+                    : $0.appName.localizedStandardCompare($1.appName) == .orderedAscending
             }
-            
+
             DispatchQueue.main.async {
-                self.apps = tempApps
-                self.uniqueLanguages = Array(allLanguages).sorted()
-                self.expandedApps = Dictionary(uniqueKeysWithValues: tempApps.map { ($0.id, false) })
+                self.apps = scannedApps
+                self.scanWasStopped = self.control.isCanceled
+                self.control.finish()
                 self.isScanning = false
-                self.progress = 1.0
+                self.progress = 1
                 self.currentlyScanningApp = ""
             }
         }
     }
-    
+
+    private func scanApp(_ appPath: String) -> AppLanguage? {
+        let folders = languageDiscovery.languageResources(inApplication: appPath)
+        guard !folders.isEmpty else { return nil }
+
+        var languagePaths: [String: [String]] = [:]
+        var folderSizes: [String: UInt64] = [:]
+        for (folderName, paths) in folders {
+            let key = LanguageProtection.languageKey(folderName)
+            languagePaths[key, default: []].append(contentsOf: paths)
+            for path in paths {
+                folderSizes[path] = allocatedSize(ofDirectory: path)
+            }
+        }
+
+        let languages = Array(languagePaths.keys)
+        return AppLanguage(
+            appName: URL(fileURLWithPath: appPath).lastPathComponent,
+            appPath: appPath,
+            languagePaths: languagePaths.mapValues { $0.sorted() },
+            folderSizes: folderSizes,
+            protectedLanguages: LanguageProtection.protectedLanguages(
+                languages,
+                developmentLanguageCode: LanguageProtection
+                    .developmentLanguageCode(inApplication: appPath),
+                preferredLanguageCodes: preferredLanguageCodes
+            )
+        )
+    }
+
+    /// Disk space a folder occupies, which is what removing it frees.
+    private func allocatedSize(ofDirectory path: String) -> UInt64 {
+        let keys: Set<URLResourceKey> = [.totalFileAllocatedSizeKey, .isRegularFileKey]
+        guard let enumerator = fileManager.enumerator(
+            at: URL(fileURLWithPath: path, isDirectory: true),
+            includingPropertiesForKeys: Array(keys),
+            options: []
+        ) else {
+            return 0
+        }
+        var total: UInt64 = 0
+        for case let url as URL in enumerator {
+            guard let values = try? url.resourceValues(forKeys: keys),
+                  values.isRegularFile == true
+            else {
+                continue
+            }
+            total += UInt64(values.totalFileAllocatedSize ?? 0)
+        }
+        return total
+    }
+
+    // MARK: - Removal
+
     func removeSelected() {
-        var pathsToRemove: [(appIndex: Int, language: String, path: String)] = []
-        var removedFiles: [String] = []
-        
-        for (appIndex, app) in apps.enumerated() {
-            for language in app.languages {
-                if app.selectedLanguages.contains(language) || selectedLanguages.contains(language) {
-                    if let paths = app.languagePaths[language] {
-                        pathsToRemove.append(contentsOf: paths.map { (appIndex, language, $0) })
-                    }
-                }
-            }
+        let removalItems = selectedRemovalItems()
+        guard !removalItems.isEmpty, !isRemoving else { return }
+
+        // Apps under /Applications go through Archify Helper. If it still
+        // needs setting up, show how and resume this removal afterwards.
+        let needsPrivilegedHelper = removalItems.contains {
+            applicationDiscovery.isWithinRoot($0.path, rootPath: "/Applications")
         }
-        
-        guard HelperToolManager.shared.isHelperToolInstalled() || HelperToolManager.shared.blessHelperTool() else {
-            print("Failed to install helper tool.")
+        if needsPrivilegedHelper,
+           !HelperAccess.shared.ensureReady(retry: { [weak self] in
+               self?.removeSelected()
+           }) {
             return
         }
-        
-        let totalCount = pathsToRemove.count
-        var removedCount = 0
-        
+
         isRemoving = true
-        progress = 0.0
-        
-        DispatchQueue.global(qos: .background).async {
-            let group = DispatchGroup()
-            
-            for (appIndex, language, path) in pathsToRemove {
-                group.enter()
-                DispatchQueue.main.async {
-                    self.currentlyRemovingFile = "Removing \(path)"
-                }
-                HelperToolManager.shared.interactWithHelperTool(command: .removeFile(path: path)) { success, errorString in
-                    if success {
-                        DispatchQueue.main.async {
-                            self.apps[appIndex].languagePaths[language]?.removeAll(where: { $0 == path })
-                            if self.apps[appIndex].languagePaths[language]?.isEmpty == true {
-                                self.apps[appIndex].languagePaths.removeValue(forKey: language)
-                                self.apps[appIndex].languages.removeAll(where: { $0 == language })
-                                self.uniqueLanguages.removeAll(where: { $0 == language })
-                            }
-                            removedFiles.append(path)
-                            removedCount += 1
-                            self.progress = Double(removedCount) / Double(totalCount)
-                        }
-                    } else {
-                        print("Failed to remove: \(path)")
-                        print("Helper tool error: \(errorString ?? "unknown error")")
-                    }
-                    group.leave()
+        progress = 0
+        removedFilesLog = ""
+        removalFailures = []
+        lastRemoval = nil
+        notStartedCount = 0
+        control.begin()
+        removeNext(removalItems, index: 0, removedFiles: [], freedBytes: 0)
+    }
+
+    private func selectedRemovalItems() -> [RemovalItem] {
+        var items: [RemovalItem] = []
+        for app in apps where !excludedApps.contains(app.id) {
+            for language in app.languages
+            where selectedLanguages.contains(language) && !isProtected(language, in: app) {
+                for path in app.languagePaths[language] ?? [] {
+                    items.append(
+                        RemovalItem(
+                            appID: app.id,
+                            appPath: app.appPath,
+                            language: language,
+                            path: path,
+                            size: app.folderSizes[path] ?? 0
+                        )
+                    )
                 }
             }
-            
-            group.notify(queue: .main) {
-                self.isRemoving = false
-                self.progress = 1.0
-                self.removedFilesLog = removedFiles.joined(separator: "\n")
-                self.currentlyRemovingFile = ""
-            }
+        }
+        return items.sorted {
+            $0.appPath == $1.appPath ? $0.path < $1.path : $0.appPath < $1.appPath
         }
     }
-    
-    func toggleApp(_ appId: UUID) {
-        if selectedApps.contains(appId) {
-            selectedApps.remove(appId)
-        } else {
-            selectedApps.insert(appId)
-        }
-    }
-    
-    func toggleLanguageInApp(_ language: String, app: AppLanguage) {
-        if let appIndex = apps.firstIndex(where: { $0.id == app.id }) {
-            if apps[appIndex].selectedLanguages.contains(language) {
-                apps[appIndex].selectedLanguages.remove(language)
-            } else {
-                apps[appIndex].selectedLanguages.insert(language)
-            }
-            objectWillChange.send() // Notify the view about the change
-        }
-    }
-    
-    func toggleGlobalLanguage(_ language: String) {
-        if shouldGrayOutLanguage(language) {
+
+    private func removeNext(
+        _ items: [RemovalItem],
+        index: Int,
+        removedFiles: [String],
+        freedBytes: UInt64
+    ) {
+        guard index < items.count else {
+            finishRemoval(removedFiles: removedFiles, freedBytes: freedBytes)
             return
         }
-        if selectedLanguages.contains(language) {
-            selectedLanguages.remove(language)
-        } else {
-            selectedLanguages.insert(language)
-        }
-        // Update app-specific selections
-        for index in apps.indices {
-            if selectedLanguages.contains(language) {
-                apps[index].selectedLanguages.insert(language)
+
+        // Pause holds the removal here; Cancel ends it before this folder.
+        control.proceed({
+            self.removeItem(
+                at: index,
+                of: items,
+                removedFiles: removedFiles,
+                freedBytes: freedBytes
+            )
+        }, orStop: {
+            self.notStartedCount = items.count - index
+            self.removedFilesLog += "Canceled. \(items.count - index) folders were not started and are unchanged.\n"
+            self.finishRemoval(removedFiles: removedFiles, freedBytes: freedBytes)
+        })
+    }
+
+    private func removeItem(
+        at index: Int,
+        of items: [RemovalItem],
+        removedFiles: [String],
+        freedBytes: UInt64
+    ) {
+        let item = items[index]
+        currentlyRemovingFile = "\(LanguageProtection.displayName(forKey: item.language)) · "
+            + URL(fileURLWithPath: item.appPath).deletingPathExtension().lastPathComponent
+
+        // An app may have been opened since the removal started; never
+        // change an app while it runs.
+        let remove: (@escaping (Bool, String?) -> Void) -> Void = { completion in
+            if RunningApplications.isRunning(item.appPath) {
+                completion(false, RunningApplications.skippedWhileRunningMessage)
             } else {
-                apps[index].selectedLanguages.remove(language)
+                self.removeResource(item, completion: completion)
+            }
+        }
+
+        remove { success, errorString in
+            DispatchQueue.main.async {
+                var removedFiles = removedFiles
+                var freedBytes = freedBytes
+                if success {
+                    self.applySuccessfulRemoval(item)
+                    removedFiles.append(item.path)
+                    freedBytes += item.size
+                } else {
+                    let reason = errorString ?? "unknown error"
+                    self.removalFailures.append((item.path, reason))
+                    self.removedFilesLog += "Failed: \(item.path) — \(reason)\n"
+                }
+
+                // Canceling the administrator prompt cancels the removal
+                // rather than asking again for every remaining folder.
+                if errorString == HelperToolManager.authorizationCanceledMessage {
+                    self.control.cancel()
+                }
+                self.progress = Double(index + 1) / Double(items.count)
+                self.removeNext(
+                    items,
+                    index: index + 1,
+                    removedFiles: removedFiles,
+                    freedBytes: freedBytes
+                )
             }
         }
     }
-    
-    func toggleSelectAllLanguages() {
-        if isAllLanguagesSelected {
-            selectedLanguages.removeAll()
-        } else {
-            selectedLanguages = Set(uniqueLanguages.filter { !shouldGrayOutLanguage($0) })
+
+    private func removeResource(
+        _ item: RemovalItem,
+        completion: @escaping (Bool, String?) -> Void
+    ) {
+        if applicationDiscovery.isWithinRoot(item.path, rootPath: "/Applications") {
+            HelperToolManager.shared.interactWithHelperTool(
+                command: .removeLanguageResource(path: item.path),
+                completion: completion
+            )
+            return
         }
-        // Update app-specific selections
-        for index in apps.indices {
-            if isAllLanguagesSelected {
-                apps[index].selectedLanguages = Set(apps[index].languages.filter { !shouldGrayOutLanguage($0) })
-            } else {
-                apps[index].selectedLanguages.removeAll()
-            }
+
+        let userApplicationsRoot = fileManager.homeDirectoryForCurrentUser
+            .appendingPathComponent("Applications", isDirectory: true)
+            .path
+        guard applicationDiscovery.isWithinRoot(item.appPath, rootPath: userApplicationsRoot),
+              let validatedPath = languageDiscovery.validatedLanguageResourcePath(
+                item.path,
+                inApplication: item.appPath
+              )
+        else {
+            completion(false, "Language resource is outside a supported application bundle.")
+            return
+        }
+
+        do {
+            try fileManager.removeItem(atPath: validatedPath)
+            completion(true, nil)
+        } catch {
+            completion(false, error.localizedDescription)
         }
     }
-    
-    func toggleSelectAllLanguages(in app: AppLanguage) {
-        if let appIndex = apps.firstIndex(where: { $0.id == app.id }) {
-            if isAllLanguagesSelected(in: apps[appIndex]) {
-                apps[appIndex].selectedLanguages.removeAll()
-            } else {
-                apps[appIndex].selectedLanguages = Set(apps[appIndex].languages.filter { !shouldGrayOutLanguage($0) })
+
+    private func applySuccessfulRemoval(_ item: RemovalItem) {
+        guard let appIndex = apps.firstIndex(where: { $0.id == item.appID }) else {
+            return
+        }
+        apps[appIndex].languagePaths[item.language]?.removeAll { $0 == item.path }
+        apps[appIndex].folderSizes.removeValue(forKey: item.path)
+        if apps[appIndex].languagePaths[item.language]?.isEmpty == true {
+            apps[appIndex].languagePaths.removeValue(forKey: item.language)
+        }
+        if apps[appIndex].languagePaths.isEmpty {
+            apps.remove(at: appIndex)
+        }
+    }
+
+    private func finishRemoval(removedFiles: [String], freedBytes: UInt64) {
+        // Keep the selection only for languages that still have folders,
+        // so retrying removes exactly what failed.
+        selectedLanguages.formIntersection(Set(apps.flatMap(\.languages)))
+        isRemoving = false
+        control.finish()
+        progress = 1
+        currentlyRemovingFile = ""
+        lastRemoval = (removedFiles.count, freedBytes)
+        if !removedFiles.isEmpty {
+            let successfulLog = removedFiles.joined(separator: "\n")
+            removedFilesLog = removedFilesLog.isEmpty
+                ? successfulLog
+                : successfulLog + "\n" + removedFilesLog
+        }
+
+        if removalFailures.contains(where: {
+            HelperToolManager.isProtectedAppRefusal($0.reason)
+        }) {
+            HelperAccess.shared.present(.fullDiskAccessNeeded) { [weak self] in
+                self?.removeSelected()
             }
-            objectWillChange.send() // Notify the view about the change
         }
     }
 }

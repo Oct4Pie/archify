@@ -8,5 +8,5 @@
 import Foundation
 
 struct Version {
-    static let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.4.0"
+    static let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.5.0"
 }

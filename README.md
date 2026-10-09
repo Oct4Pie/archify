@@ -1,152 +1,110 @@
-
 <p align="center">
-<img src="https://i.imgur.com/ttfaqoV.png" width="132" height="128" alt="archify">
+<img src="https://i.imgur.com/ttfaqoV.png" width="132" height="128" alt="Archify">
 </p>
 
 # Archify
 
-Archify is a tool that helps reduce the size of Mach-O universal binaries to save disk space.
+Archify frees disk space by removing code your Mac never runs. Many macOS apps ship as universal binaries that contain both Apple Silicon and Intel code; Archify keeps only the architecture your Mac needs, stores what remains compressed, and can also remove unused language files.
 
 [![GPLv3 License](https://img.shields.io/badge/License-GPL%20v3-yellow.svg)](https://opensource.org/licenses/)
 ![GitHub stars](https://img.shields.io/github/stars/Oct4Pie/archify)
 ![GitHub forks](https://img.shields.io/github/forks/Oct4Pie/archify)
 
+<img width="946" alt="Archify" src="docs/archify-1.5.0.png">
+
+## Requirements
+
+- macOS 12 Monterey or later
+- Apple Silicon or Intel Mac (Archify itself is universal)
+
 ## Installation
 
-To install Archify, follow these steps:
+1. Download the latest `Archify-<version>.zip` from [Releases](https://github.com/Oct4Pie/archify/releases).
+2. Unzip it and move **Archify** to your Applications folder.
+3. Open Archify.
 
-1. Go to the [releases](https://github.com/Oct4Pie/archify/releases) section of the Archify GitHub repository (the only recommended version is 1.4.0 due to the addition of Mac distribution certificate, which, in turn, fixes a helper vulnerability and adds notarization.
-2. Download the latest release of Archify.
-3. Once downloaded, open the dmg or zip file and optionally move the Archify app to your Applications folder.
+Releases are signed with a Developer ID and notarized by Apple. From 1.5 on, Archify updates itself; you can change this under **Archify → Settings → Updates**. If you are on 1.4 or earlier, install 1.5 manually once.
 
-## App Usage
-<img width="1200" alt="appusage.png" src="https://github.com/user-attachments/assets/ded275d6-fe97-42d4-a54e-d78ca84fc533">
+## Features
 
-The new GUI for Archify provides an interface for managing the applications. The GUI includes features such as:
+- **Optimize App** — creates a smaller copy of one app in a folder you choose. The original is never changed. If an app with the same name already exists there, you can keep both or replace the old one (it goes to the Trash).
+- **Optimize Apps** — scans /Applications and ~/Applications, shows how much each app can save, and optimizes the apps you select in place.
+- **Space Savings** — estimates how much space selected apps would free, without changing anything.
+- **Languages** — removes language files for languages you don't use. Your preferred languages, each app's development language, and any language an app's signature depends on are always kept.
+- **Installed Apps** — browse your apps by architecture: universal, Apple Silicon, Intel, or other.
 
-1. **App Selection**: Select the input app and output directory for the app you want to process.
-2. **Architecture**: By default, the machine architecture. Can optionally select a target architecture from the list.
-3. **Signing**: Toggle between signing options (`ldid` and `codesign`) and specify whether to include entitlements. A new option `App launch` is added and attempts to cache signature to avoid the need for external signing.
-4. **Progress and Logging**: View the progress of the processing and detailed logs in real-time.
-5. **Size Calculation**: Calculate how much space is being used up by unnecessary binaries in each app.
-6. **Language Cleaner**: Scan the `/Applications` directory to find and remove unnecessary language files from apps
-7. **Batch Processing**: Scan and process all apps in the `/Applications` directory in one go
-8. **Universal Apps**: View the state of the installed apps as native or universal
+Optimized binaries are stored with macOS's built-in transparent compression, the same format Apple's installers use. Apps read them unchanged, so signatures stay valid, and the binaries typically take a third to half of their thinned size on disk. Sizes and savings are shown as actual space on disk.
 
-### Note
-- The default options should work the best. It is recommended to only use `App launch (cache)` first.
-- If it does not suffice, feel free to experiment with the other signing options.
-- Using `codesign` or `ldid` without entitlements usually work, but sometimes injecting entitlements is required.
-  - This option may cause issues with the app accessing keychain due to the app having no identity.
-- After you have ensured the output app is functional, you can replace it with the original one.
+Long scans and batch operations can be paused, resumed, or canceled. If an app you are about to change is open, Archify offers to quit it first or skips it.
 
-## Helper Tool
+## How Archify keeps apps working
 
-Archify now includes a helper tool for privileged operations such as removing files and modifying app binaries. This helper makes sure that the necessary permissions are granted to perform these operations safely and effectively.
+- **All or nothing.** Each app is optimized as a single transaction. New binaries are prepared and checked first, then swapped in atomically. If anything fails, the app is rolled back to exactly how it was.
+- **Signatures stay valid.** Files that an app's signature seals are left alone, and the whole app is verified after the change. If verification fails, the change is undone. Optimized apps stay signed and notarized.
+- **No surprises.** Optimize App only ever changes the copy, and nothing is overwritten without asking.
 
-The helper tool is used for tasks such as:
-- Removing the languages files.
-- Extracting and signing binaries.
-- Setting file permissions.
+## Permissions
 
-## Why Launch the App?
+Apps in /Applications belong to the system, so Archify uses a small helper to change them:
 
-When an app is launched for the first time, macOS performs various checks and initializations. By launching the app before modifying it, you allow macOS to:
+- **Helper.** The first time you change an app in /Applications, macOS asks you to allow Archify in the background. Archify opens **System Settings → General → Login Items** for you and continues once you approve. The helper runs only while it has work to do.
+- **Administrator password.** Every change in /Applications needs an administrator's approval, just as it would in Finder. The approval is reused for five minutes.
+- **Full Disk Access (macOS 13 and later).** macOS protects apps that have been opened at least once. To change one of them, Archify needs Full Disk Access. Archify asks only when macOS actually blocks a change, and links straight to the right setting. App Management alone is not enough, because the helper acts for all users of the Mac.
 
-1. **Cache**: macOS validates the app's code signature and other integrity checks and may cache this validation. This means later launches rely more on this cached state rather than revalidating the entire app.
-2. **Initial State**: The app sets up necessary initial states, caches, and configuration files that do not need revalidation.
-3. **Integrity Checks**: After the initial launch, some integrity checks can be bypassed to make it easier for the app to run even if its contents are later modified.
+Apps in ~/Applications belong to you and need none of these.
 
-By launching the app before modifying it, the necessary initial validations are done, which helps the app run even after modifications. This technique is useful when modifying apps to change their architecture or remove unnecessary components.
+The helper can do only two things: optimize an app in /Applications and remove a language folder inside one. It accepts requests only from Archify signed by the same developer, checks every path without following symbolic links, and never leaves the app it was asked to change.
 
-## Python Script Usage
+## Advanced options
 
-If you prefer using the command-line interface, you can use the provided Python script.
+Under **Advanced** in Optimize App:
 
-### Requirements
+- **Open the copied app once before optimizing** lets the copy finish its first-launch setup.
+- **Use arm64e target** keeps the arm64e code instead of arm64. Use it only when the app contains an arm64e slice.
+- **Signature handling** is **Preserve signature** by default. **Re-sign locally** (ad-hoc) and **Use LDID** are for an app that will not open after optimizing. Re-signing changes the app's identity and can affect Keychain access, updates, or copy protection, so use them only when needed. **Use LDID** needs [`ldid`](https://formulae.brew.sh/formula/ldid), for example from `brew install ldid`.
 
-- Python 3 is required.
-  - Install via [Homebrew](https://brew.sh): `brew install python`
-- `ldid` can also be found in [releases](https://github.com/Oct4Pie/archify/releases)
+## Command-line tool
 
-### Running the Script
+`archify.py` offers the same safe, transactional optimization from Terminal. It always works on a copy and never overwrites an existing app. Run it as your own user; it refuses to run as root or with `sudo`, which it never needs. The output folder must be one that other users can't change, such as a folder in your home folder.
 
-To start:
+    python3 archify.py -app APP [APP ...] [-o OUTPUT_DIR] [-arch ARCH]
+                       [-ld LDID] [-Ns] [-Ne] [-cs] [-l] [-Nc]
 
-```
-python3 archify.py [-h] -app APP_DIR [APP_DIR ...] [-o OUTPUT_DIR] [-arch ARCH]
-                   [-ld LDID] [-Ns] [-Ne] [-cs] [-l]
-```
+| Option | Meaning |
+| --- | --- |
+| `-app`, `--app_dir` | One or more apps to copy and optimize |
+| `-o`, `--output_dir` | Folder for the optimized copies |
+| `-arch`, `--arch` | Architecture to keep (default: this Mac's, even under Rosetta) |
+| `-ld`, `--ldid` | Path to an `ldid` executable |
+| `-Ns`, `--no_sign` | Don't sign with `ldid` |
+| `-Ne`, `--no_entitlements` | Don't reuse entitlements when signing |
+| `-cs`, `--codesign` | Ad-hoc sign the copy with `codesign` |
+| `-l`, `--no_launch` | Don't launch the copy before optimizing |
+| `-Nc`, `--no_compress` | Don't compress the thinned binaries |
 
-#### Options
+Example:
 
-- `-app, --app_dir`: Support one or more apps.
-- `-arch, --arch`: Specify the target architecture. Use `arm64` for Apple Silicon devices. Intel 32-bit should be `i386` and 64-bit `x86_64` for Intel Macs. Default is set by the system.
-- `-ld, --ldid`: The path to `ldid` binary (if signing with `ldid` is needed).
-- `-Ns, --no_sign`: Do not sign the binaries with `ldid`.
-- `-Ne, --no_entitlements`: Do not sign the binaries with original entitlements with `ldid`.
-- `-cs, --codesign`: Ad-hoc sign the entire app with `codesign`.
-- `-l, --no_launch`: Do not launch the app to initialize before processing.
+    python3 archify.py -app "/Applications/Example.app" -o "$HOME/Desktop/Archified" -Ns -l
 
-#### Usage Example
+## Known limitations
 
-- To create a fully native Apple Silicon version of Adobe Illustrator packaged in `/Users/oct4pie/apps/ptest`:
-```
-python3 archify.py -app /Applications/Adobe\ Illustrator\ 2022/Adobe\ Illustrator.app -o /Users/oct4pie/apps/ptest -arch arm64
-```
+- Some apps check their own files for changes, use copy protection, or ship their own updaters, and may object to an optimized copy even though macOS accepts its signature. Optimize a copy first if you are unsure.
+- A self-updating app may restore the removed architecture or languages when it updates.
 
-- To create a 64-bit Intel version of Excel and OneNote:
-```
-python3 archify.py -app /Applications/Microsoft\ Excel.app /Applications/Microsoft\ OneNote.app -o /Users/oct4pie/apps/ptest -arch x86_64
-```
+## Building from source
 
-- The `-arch` by default is the system architecture.
+Open `archify.xcodeproj` in Xcode, or build and test from Terminal:
 
-## Why?
+    xcodebuild -project archify.xcodeproj -scheme archify -configuration Debug build
+    xcodebuild -project archify.xcodeproj -scheme archifyTests test
+    python3 -m unittest discover -s tests -p 'test_*.py'
 
-I was tired of downloading bloated universal apps, and managing the space became a hassle. I don't think people should lose storage space because of that. I wrote this tool to help me, and I hope it will be useful to others as well. I was able to free up significant space after using the script on large apps (such as Adobe apps, Unity, 3D Engines, Microsoft Office, etc.).
-
-## Note
-
-The apps I have generated so far work without any issues. If the app crashes, try using `ldid`, `codesign` (with/without entitlements) flags for signing. `-Ns` should work most of the time because of fake-signing. This project is published for educational purposes. Although the script does not alter the original apps, use it with caution. I am not responsible for any harm done.
+Debug builds are ad-hoc signed and do everything except install the privileged helper, which only trusts apps signed by the release team. To test the helper with your own Apple team, use `ARCHIFY_DEBUG_TEAM_ID=<team id> scripts/build-privileged-debug.sh`. Release builds are produced with `scripts/build-release.sh`.
 
 ## Changelog
 
-
-### Version 1.4.0
-- Added a Developer Certificate to fix an xpc vulnerability
-- Helper tool stability
-- Full Disk Access Manager added
-- Optimizations, formatting, and bug fixes
-
-### Version 1.3.0
-- Performance enhancing
-- Full Disk Access issues fixed
-- Helper versioning
-- App view improvement
-
-### Version 1.2.0
-- Multiple UI enhancements
-- Dyanmic versioning
-- Improved helper tool disk access checks
-- Persistence for universal apps view
-
-### Version 1.2.0
-
-- Language (.lproj) Cleaner to scan `/Applications` and remove unnecessary language files.
-- Batch processing to scan and process all universal apps in the `/Applications` directory
-- Added helper tool for privileged operations to remove files, extract and sign binaries, and set file permissions.
-- Universal apps view
-
-### Version 1.1.0
-
-- GUI: single app processing, multiple architecture size calculations, signing & entitlement options
-- Python script: multiple architecture size calculations, ad-hoc sign, entitlement options
-
-### Version 1.0.0
-
-- Initial release of Archify as a python script with single app processing, architecture size calculations, ldid signing
+See [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
-Licensed under [GPLv3](https://choosealicense.com/licenses/gpl-3.0)
+Archify is licensed under the [GPLv3](https://choosealicense.com/licenses/gpl-3.0). Third-party notices are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

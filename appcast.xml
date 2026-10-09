@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<!-- sparkle-sign-warning:
+IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
+-->
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Archify Updates</title>
+        <link>https://github.com/Oct4Pie/archify/releases</link>
+        <description>Stable Archify updates</description>
+        <language>en</language>
+        <item>
+            <title>1.5.0</title>
+            <pubDate>Fri, 09 Oct 2026 05:34:30 -0700</pubDate>
+            <link>https://github.com/Oct4Pie/archify/releases/tag/v1.5.0</link>
+            <sparkle:version>12</sparkle:version>
+            <sparkle:shortVersionString>1.5.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>12.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/Oct4Pie/archify/releases/download/v1.5.0/Archify-1.5.0.zip" length="4046228" type="application/octet-stream" sparkle:edSignature="U4sOMjyhHgYTuv7tg+cmHSDvPrGvj3kfQeDgebZytiV+/ETcXB5g861AOlQuBpjrT7E7seMq91mJqJu/tci7Dg=="/>
+        </item>
+    </channel>
+</rss>
+<!-- sparkle-signatures:
+edSignature: 7N6zns74Pxo+WgM/yWupCldGXsB7NHTFfmorKnq1oepZ+P2IAVSSErmFFr7aJKoITd469Q4mtVjL8viqJsIDCA==
+length: 1290
+-->

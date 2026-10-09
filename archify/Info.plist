@@ -4,10 +4,22 @@
 <dict>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/Oct4Pie/archify/main/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>mm58k3AHdP56QTG8/oQPssg0IDg40BsTyRuEZ5ICfME=</string>
+	<key>SURequireSignedFeed</key>
+	<true/>
+	<key>SUVerifyUpdateBeforeExtraction</key>
+	<true/>
 	<key>SMPrivilegedExecutables</key>
 	<dict>
 		<key>com.oct4pie.archifyhelper</key>
-		<string>identifier "com.oct4pie.archifyhelper" and anchor apple generic and certificate leaf[subject.CN] = "Apple Distribution: Mehdi Hajmollaahmad Naraghi (9827C97648)" and certificate 1[field.1.2.840.113635.100.6.2.1] /* exists */</string>
+		<string>$(ARCHIFY_HELPER_CODE_REQUIREMENT)</string>
 	</dict>
 </dict>
 </plist>

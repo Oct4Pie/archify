@@ -14,22 +14,29 @@ struct archifyApp: App {
     @StateObject var batchProcessing = BatchProcessing()
     @StateObject var sizeCalculation = SizeCalculation()
     @StateObject var universalAppsView = UniversalAppsViewModel()
+    @StateObject var updateManager = UpdateManager()
+
     var body: some Scene {
         WindowGroup {
-            
             ContentView()
-                
                 .environmentObject(appState)
                 .environmentObject(languageCleaner)
                 .environmentObject(batchProcessing)
                 .environmentObject(sizeCalculation)
                 .environmentObject(universalAppsView)
-                
         }
-            .windowStyle(HiddenTitleBarWindowStyle())
-        
-            
-        
-    }
+        .windowStyle(HiddenTitleBarWindowStyle())
+        .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") {
+                    updateManager.checkForUpdates()
+                }
+                .disabled(!updateManager.canCheckForUpdates)
+            }
+        }
 
+        Settings {
+            SettingsRootView(updateManager: updateManager)
+        }
+    }
 }

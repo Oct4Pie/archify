@@ -9,6 +9,7 @@
 - The helper can only optimize apps and remove language folders. Its older file operations that accepted any path are gone.
 - Helper paths are checked without following symbolic links, and requests outside the app being changed are refused.
 - The helper prepares changes in a folder only the system can modify and reads app files without following links, so other programs cannot redirect what it writes.
+- The helper only reads ordinary files, so a file swapped for a special one cannot stall it.
 - The helper exits when idle, so no root process lingers and an updated helper is used from the next operation.
 - The Archify 1.4 helper is replaced automatically, with no restart or logout.
 
@@ -20,7 +21,7 @@
 - Files sealed by an app's signature are left alone, so optimized apps keep a valid signature and stay notarized.
 - Open apps are detected before changes. Archify offers to quit them, or skips them.
 - Optimize Apps, Languages, scans and size calculations can be paused, resumed or canceled.
-- Optimize App never overwrites an existing app. It offers Keep Both or Replace (which moves the old copy to the Trash).
+- Optimize App never overwrites an existing app. It offers Keep Both or Replace (which moves the old copy to the Trash). The copy is made in a private folder and moved into place only if nothing has appeared there in the meantime. Destination folders that other users can change are refused.
 
 ### Permissions
 
@@ -31,6 +32,7 @@
 
 - A redesigned Languages screen: pick languages, review the affected apps, and see how much space each choice frees.
 - Your preferred languages and each app's development language are always kept. Language folders that an app's signature requires are never removed.
+- If a language folder can only be partly removed, Archify says so instead of reporting that nothing changed.
 
 ### Apps and architectures
 
@@ -48,7 +50,8 @@
 ### Command-line tool
 
 - Transactional optimization that keeps sealed files, the same as the app.
-- Never overwrites an existing app at the destination.
+- Never overwrites an existing app at the destination, even one that appears while copying, and refuses output folders that other users can change.
+- Refuses to run as root or with `sudo`, which it never needs, and never writes its log through a link.
 - Thinned binaries are stored compressed, the same as the app. Use `--no_compress` to turn this off.
 - Apps without entitlements are no longer reported as signing failures.
 

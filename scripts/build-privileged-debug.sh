@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEAM_ID="${ARCHIFY_DEBUG_TEAM_ID:-9827C97648}"
-DERIVED_DATA="${ARCHIFY_DEBUG_DERIVED_DATA:-/tmp/archify-privileged-debug}"
+DERIVED_DATA="${ARCHIFY_DEBUG_DERIVED_DATA:-$(getconf DARWIN_USER_TEMP_DIR)archify-privileged-debug}"
 
 find_identity() {
     local kind="$1"

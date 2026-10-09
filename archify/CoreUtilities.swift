@@ -159,16 +159,25 @@ enum MachOInspector {
         atPath path: String,
         fileSize knownFileSize: UInt64? = nil
     ) -> [MachOSliceInfo]? {
-        guard FileSystemUtilities.identity(
-            atPath: path,
-            requireRegularFile: true
-        ) != nil else {
+        // Inspect the file that was actually opened. O_NONBLOCK keeps a FIFO
+        // swapped in for the path from stalling the open.
+        let fd = path.withCString { pointer in
+            Darwin.open(
+                pointer,
+                O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC
+            )
+        }
+        guard fd >= 0 else {
             return nil
         }
-
-        guard let handle = FileHandle(forReadingAtPath: path) else {
+        var info = stat()
+        guard fstat(fd, &info) == 0,
+              (info.st_mode & mode_t(S_IFMT)) == mode_t(S_IFREG)
+        else {
+            close(fd)
             return nil
         }
+        let handle = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
         defer { try? handle.close() }
 
         let prefix = handle.readData(ofLength: 12)
@@ -185,18 +194,7 @@ enum MachOInspector {
                 return nil
             }
 
-            let size: UInt64
-            if let knownFileSize {
-                size = knownFileSize
-            } else {
-                guard let attributes = try? FileManager.default
-                    .attributesOfItem(atPath: path),
-                      let fileSize = attributes[.size] as? NSNumber
-                else {
-                    return nil
-                }
-                size = fileSize.uint64Value
-            }
+            let size = knownFileSize ?? UInt64(info.st_size)
 
             return [
                 MachOSliceInfo(

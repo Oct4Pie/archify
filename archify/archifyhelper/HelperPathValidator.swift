@@ -9,6 +9,9 @@ struct ValidatedHelperPath {
 }
 
 struct SecureDirectoryRemover {
+    static let partialRemovalMessage =
+        "Some files in the language folder could not be removed. The folder was partly removed."
+
     func remove(_ target: ValidatedHelperPath) -> String? {
         let rootFD = target.rootPath.withCString { pointer in
             Darwin.open(
@@ -86,7 +89,11 @@ struct SecureDirectoryRemover {
             return "Unable to open the language directory safely."
         }
 
-        let removalError = removeContents(ofDirectoryFD: directoryFD)
+        var removedEntries = 0
+        let removalError = removeContents(
+            ofDirectoryFD: directoryFD,
+            removedEntries: &removedEntries
+        )
         close(directoryFD)
 
         guard removalError == 0 else {
@@ -95,6 +102,11 @@ struct SecureDirectoryRemover {
                 claimedName: claimedName,
                 originalName: parent.leaf
             )
+            // Files deleted before the failure cannot be restored, so only
+            // promise that nothing changed when nothing did.
+            if removedEntries > 0 {
+                return Self.partialRemovalMessage
+            }
             if Self.isNotPermitted(removalError) {
                 return ApplicationThinner.changeNotPermittedMessage
             }
@@ -151,7 +163,11 @@ struct SecureDirectoryRemover {
     }
 
     /// Returns 0 on success, otherwise the `errno` of the first failure.
-    private func removeContents(ofDirectoryFD directoryFD: Int32) -> Int32 {
+    /// `removedEntries` counts what was deleted before any failure.
+    private func removeContents(
+        ofDirectoryFD directoryFD: Int32,
+        removedEntries: inout Int
+    ) -> Int32 {
         let streamFD = dup(directoryFD)
         guard streamFD >= 0,
               let directory = fdopendir(streamFD)
@@ -216,7 +232,8 @@ struct SecureDirectoryRemover {
                     return EBUSY
                 }
                 let childError = removeContents(
-                    ofDirectoryFD: childFD
+                    ofDirectoryFD: childFD,
+                    removedEntries: &removedEntries
                 )
                 close(childFD)
                 guard childError == 0 else {
@@ -227,12 +244,14 @@ struct SecureDirectoryRemover {
                 }) == 0 else {
                     return errno
                 }
+                removedEntries += 1
             } else {
                 guard name.withCString({
                     unlinkat(directoryFD, $0, 0)
                 }) == 0 else {
                     return errno
                 }
+                removedEntries += 1
             }
         }
 

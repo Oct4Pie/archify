@@ -125,11 +125,11 @@ if [[ "$EXPECT_NOTARIZED" -eq 1 ]]; then
     spctl --assess --type execute --verbose=4 "$APP"
     pass "notarization and Gatekeeper"
 else
-    if spctl --assess --type execute --verbose=4 "$APP" >/tmp/archify-spctl.out 2>&1; then
+    if spctl_output="$(spctl --assess --type execute --verbose=4 "$APP" 2>&1)"; then
         pass "Gatekeeper assessment already passes"
     else
         echo "INFO: Gatekeeper assessment does not pass yet:"
-        sed -n '1,5p' /tmp/archify-spctl.out
+        printf '%s\n' "$spctl_output" | sed -n '1,5p'
     fi
 fi
 

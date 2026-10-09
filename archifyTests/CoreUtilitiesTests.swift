@@ -179,6 +179,15 @@ final class MachOInspectorTests: XCTestCase {
         XCTAssertNil(MachOInspector.slices(atPath: path))
     }
 
+    func testRejectsFIFOWithoutBlocking() throws {
+        let path = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString).path
+        XCTAssertEqual(mkfifo(path, 0o600), 0)
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        // With no writer, a blocking open of the FIFO would never return.
+        XCTAssertNil(MachOInspector.slices(atPath: path))
+    }
+
     private func writeTemporaryBinary(_ data: Data) throws -> String {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)

@@ -82,6 +82,43 @@ struct ApplicationCopier {
             )
         }
 
+        // Copy into a private folder Archify creates, then move the result
+        // into place only if nothing exists there yet. A failed copy never
+        // touches, or cleans up, anything Archify did not create. That folder
+        // could be swapped out if other users can change the destination.
+        guard let realOutputRoot = realpath(outputRootURL.path, nil) else {
+            throw copyError(2, "Output directory does not exist.")
+        }
+        let trustedOutputRoot = String(cString: realOutputRoot)
+        free(realOutputRoot)
+        guard ApplicationThinner.isTrustedDirectory(trustedOutputRoot) else {
+            throw copyError(
+                10,
+                "Choose a destination folder that other users can't change."
+            )
+        }
+        // From here on use only the folder that was checked.
+        let checkedRootURL = URL(fileURLWithPath: trustedOutputRoot, isDirectory: true)
+        let checkedOutputURL = checkedRootURL.appendingPathComponent(
+            outputName,
+            isDirectory: true
+        )
+        let stagingURL = checkedRootURL.appendingPathComponent(
+            ".archify-copy-" + UUID().uuidString,
+            isDirectory: true
+        )
+        guard mkdir(stagingURL.path, 0o700) == 0 else {
+            throw copyError(
+                8,
+                "Unable to prepare the destination folder for copying."
+            )
+        }
+        defer { try? fileManager.removeItem(at: stagingURL) }
+        let stagedURL = stagingURL.appendingPathComponent(
+            outputName,
+            isDirectory: true
+        )
+
         let process = Process()
         process.executableURL = dittoURL
         process.arguments = [
@@ -89,7 +126,7 @@ struct ApplicationCopier {
             "--extattr",
             "--acl",
             inputURL.path,
-            outputURL.path
+            stagedURL.path
         ]
         var environment = ProcessInfo.processInfo.environment
         environment["DITTOABORT"] = "1"
@@ -98,23 +135,16 @@ struct ApplicationCopier {
         let errorPipe = Pipe()
         process.standardError = errorPipe
 
-        let errorOutput: Data
-        do {
-            try process.run()
-            // Drain stderr before waiting so a full pipe cannot stall ditto.
-            errorOutput = errorPipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-        } catch {
-            try? fileManager.removeItem(at: outputURL)
-            throw error
-        }
+        try process.run()
+        // Drain stderr before waiting so a full pipe cannot stall ditto.
+        let errorOutput = errorPipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
 
         guard process.terminationStatus == 0 else {
             let detail = String(
                 data: errorOutput,
                 encoding: .utf8
             )?.trimmingCharacters(in: .whitespacesAndNewlines)
-            try? fileManager.removeItem(at: outputURL)
             if let detail, !detail.isEmpty {
                 throw copyError(
                     Int(process.terminationStatus),
@@ -129,7 +159,7 @@ struct ApplicationCopier {
 
         isDirectory = false
         guard fileManager.fileExists(
-            atPath: outputURL.path,
+            atPath: stagedURL.path,
             isDirectory: &isDirectory
         ), isDirectory.boolValue else {
             throw copyError(
@@ -138,7 +168,25 @@ struct ApplicationCopier {
             )
         }
 
-        return outputURL.path
+        let renameStatus = stagedURL.path.withCString { from in
+            checkedOutputURL.path.withCString { to in
+                renamex_np(from, to, UInt32(RENAME_EXCL))
+            }
+        }
+        guard renameStatus == 0 else {
+            if errno == EEXIST {
+                throw copyError(
+                    4,
+                    "An application with the same name already exists at the destination."
+                )
+            }
+            throw copyError(
+                9,
+                "Unable to move the copied app into place."
+            )
+        }
+
+        return checkedOutputURL.path
     }
 
     private func copyError(_ code: Int, _ description: String) -> NSError {
@@ -1113,9 +1161,26 @@ final class ApplicationThinner {
             return -1
         }
         defer { close(parent.fd) }
-        return parent.leaf.withCString { pointer in
-            openat(parent.fd, pointer, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+        // O_NONBLOCK keeps a FIFO swapped in for the entry from stalling the
+        // open; only regular files are returned.
+        let fd = parent.leaf.withCString { pointer in
+            openat(
+                parent.fd,
+                pointer,
+                O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC
+            )
         }
+        guard fd >= 0 else {
+            return -1
+        }
+        var info = stat()
+        guard fstat(fd, &info) == 0,
+              (info.st_mode & mode_t(S_IFMT)) == mode_t(S_IFREG)
+        else {
+            close(fd)
+            return -1
+        }
+        return fd
     }
 
     private func entryIdentity(
@@ -1366,7 +1431,19 @@ final class ApplicationThinner {
         if mkdir(path, 0o700) != 0, errno != EEXIST {
             return false
         }
+        return isTrustedDirectory(path, requirePrivate: true)
+    }
 
+    /// Whether no one but this user and administrators can add, remove or
+    /// rename entries in `path` or any folder above it, so a name Archify
+    /// creates there cannot be swapped out. Sticky folders such as /tmp qualify,
+    /// since others cannot rename what they don't own. `requirePrivate`
+    /// also requires the folder itself to be owned by this user and closed
+    /// to everyone else. `path` must be absolute and free of links.
+    static func isTrustedDirectory(_ path: String, requirePrivate: Bool = false) -> Bool {
+        guard path.hasPrefix("/") else {
+            return false
+        }
         let user = geteuid()
         var current = ""
         let components = [""] + path.split(separator: "/").map(String.init)
@@ -1384,16 +1461,23 @@ final class ApplicationThinner {
             guard !Self.aclAllowsOthersToChange(current) else {
                 return false
             }
-            if index == components.count - 1 {
+            if requirePrivate, index == components.count - 1 {
                 guard info.st_uid == user, info.st_mode & 0o077 == 0 else {
                     return false
                 }
-            } else if info.st_mode & 0o022 != 0, info.st_mode & S_ISVTX == 0 {
+            } else if info.st_mode & S_ISVTX == 0,
+                      info.st_mode & 0o002 != 0
+                        || (info.st_mode & 0o020 != 0
+                            && !Self.privilegedGroups.contains(info.st_gid)) {
                 return false
             }
         }
         return true
     }
+
+    /// wheel and admin: their members can already act as root, so a folder
+    /// they can change, such as /Applications, is no less safe.
+    private static let privilegedGroups: Set<gid_t> = [0, 80]
 
     /// Whether an access control list lets anyone add, remove or rename
     /// entries in the directory, or change its permissions or owner. Deny

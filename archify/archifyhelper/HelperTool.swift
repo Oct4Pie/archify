@@ -290,10 +290,12 @@ class HelperTool: NSObject, NSXPCListenerDelegate, HelperToolProtocol {
         defer { endActivity(connection: false) }
         if let error = secureDirectoryRemover.remove(target) {
             // The app-protection refusal is passed through unchanged so the
-            // app can explain how to allow it; other details stay in the log.
+            // app can explain how to allow it, and a partial removal so the
+            // user knows the folder changed; other details stay in the log.
             reply(
                 false,
                 error == ApplicationThinner.changeNotPermittedMessage
+                    || error == SecureDirectoryRemover.partialRemovalMessage
                     ? error
                     : "Failed to remove the language resource safely."
             )

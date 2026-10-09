@@ -3,6 +3,7 @@ import importlib.util
 import os
 import shutil
 import struct
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -252,6 +253,109 @@ class ArchifyCLITests(unittest.TestCase):
         self.assertFalse(
             (output / app.name).exists()
         )
+        self.assertEqual(list(output.iterdir()), [])
+
+    def test_duplicate_app_never_merges_into_or_deletes_a_raced_destination(self):
+        app = self.make_app()
+        output = self.root / "Output"
+        output.mkdir()
+        planted = output / app.name
+        for status in (0, 42):
+            fake_ditto = self.root / f"fake-ditto-{status}"
+            fake_ditto.write_text(
+                "#!/bin/sh\n"
+                "for arg in \"$@\"; do dest=\"$arg\"; done\n"
+                f"mkdir -p \"$dest\" \"{planted}\"\n"
+                f"echo other > \"{planted}/other\"\n"
+                f"exit {status}\n",
+                encoding="utf-8",
+            )
+            fake_ditto.chmod(0o755)
+
+            with mock.patch.object(archify, "DITTO", str(fake_ditto)):
+                with self.assertRaises(RuntimeError):
+                    archify.duplicate_app(str(app), str(output))
+
+            self.assertEqual(sorted(p.name for p in planted.iterdir()), ["other"])
+            self.assertEqual(
+                (planted / "other").read_text(encoding="utf-8"), "other\n"
+            )
+            self.assertEqual([p.name for p in output.iterdir()], [app.name])
+            shutil.rmtree(planted)
+
+    def test_duplicate_app_refuses_folders_other_users_can_change(self):
+        app = self.make_app()
+        output = self.root / "Output"
+        output.mkdir()
+        output.chmod(0o777)
+        with self.assertRaises(RuntimeError):
+            archify.duplicate_app(str(app), str(output))
+        self.assertEqual(list(output.iterdir()), [])
+
+        output.chmod(0o755)
+        subprocess.run(
+            ["/bin/chmod", "+a", "everyone allow add_file,delete_child", str(output)],
+            check=True,
+        )
+        with self.assertRaises(RuntimeError):
+            archify.duplicate_app(str(app), str(output))
+        subprocess.run(["/bin/chmod", "-N", str(output)], check=True)
+
+        # Sticky folders such as /tmp are fine: others cannot rename our entries.
+        output.chmod(0o1777)
+        archify.duplicate_app(str(app), str(output))
+        self.assertTrue((output / app.name).is_dir())
+
+    def test_log_is_never_written_through_a_link(self):
+        target = self.root / "target.txt"
+        target.write_text("keep", encoding="utf-8")
+        archify.Log.log_buffer = ["message"]
+        try:
+            fifo = self.root / "fifo-log.txt"
+            os.mkfifo(fifo)
+            with self.assertRaises(OSError):
+                archify.Log.save_log_to_file(str(fifo))
+
+            symlink = self.root / "symlink-log.txt"
+            symlink.symlink_to(target)
+            with self.assertRaises(OSError):
+                archify.Log.save_log_to_file(str(symlink))
+
+            hardlink = self.root / "hardlink-log.txt"
+            os.link(target, hardlink)
+            with self.assertRaises(OSError):
+                archify.Log.save_log_to_file(str(hardlink))
+            self.assertEqual(target.read_text(encoding="utf-8"), "keep")
+
+            log = self.root / "process_log.txt"
+            log.write_text("old contents that are longer", encoding="utf-8")
+            archify.Log.save_log_to_file(str(log))
+            self.assertEqual(log.read_text(encoding="utf-8"), "message\n")
+        finally:
+            archify.Log.log_buffer = []
+
+    def test_refuses_untrusted_output_folder_before_writing_anything(self):
+        output = self.root / "Output"
+        output.mkdir()
+        output.chmod(0o777)
+        with mock.patch.object(archify, "parse_arguments") as parse, \
+                mock.patch.object(archify, "duplicate_app") as duplicate:
+            parse.return_value = mock.Mock(
+                app_dir=[str(self.make_app())], output_dir=str(output)
+            )
+            self.assertEqual(archify.main(), 1)
+            duplicate.assert_not_called()
+        self.assertEqual(list(output.iterdir()), [])
+
+    def test_refuses_to_run_as_root(self):
+        with mock.patch.object(archify.os, "geteuid", return_value=0), \
+                mock.patch.object(archify, "parse_arguments") as parse, \
+                mock.patch.object(archify, "duplicate_app") as duplicate:
+            parse.return_value = mock.Mock(
+                app_dir=[str(self.make_app())], output_dir=str(self.root)
+            )
+            self.assertEqual(archify.main(), 1)
+            duplicate.assert_not_called()
 
     def test_transactional_thinning_preserves_signature(self):
         app = self.make_app()

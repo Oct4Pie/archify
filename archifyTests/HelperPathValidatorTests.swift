@@ -197,6 +197,32 @@ final class HelperPathValidatorTests: XCTestCase {
         }
     }
 
+    func testPartialLanguageRemovalIsNotReportedAsUnchanged() throws {
+        let language = allowedURL
+            .appendingPathComponent("Example.app", isDirectory: true)
+            .appendingPathComponent("Contents/Resources/fr.lproj", isDirectory: true)
+        try FileManager.default.createDirectory(at: language, withIntermediateDirectories: true)
+        for index in 0..<8 {
+            try Data("v".utf8).write(to: language.appendingPathComponent("file\(index).strings"))
+        }
+        // An immutable file cannot be deleted, so removal stops part way.
+        let locked = language.appendingPathComponent("locked.strings")
+        try Data("v".utf8).write(to: locked)
+        XCTAssertEqual(chflags(locked.path, UInt32(UF_IMMUTABLE)), 0)
+        defer { _ = chflags(locked.path, 0) }
+
+        let target = try XCTUnwrap(validator.languageResourceTarget(language.path))
+        let message = SecureDirectoryRemover().remove(target)
+        let remaining = try FileManager.default.contentsOfDirectory(atPath: language.path)
+
+        XCTAssertTrue(remaining.contains("locked.strings"))
+        if remaining.count < 9 {
+            XCTAssertEqual(message, SecureDirectoryRemover.partialRemovalMessage)
+        } else {
+            XCTAssertEqual(message, ApplicationThinner.changeNotPermittedMessage)
+        }
+    }
+
     func testSecureDirectoryRemoverDeletesTargetWithoutFollowingSymlinks()
         throws
     {

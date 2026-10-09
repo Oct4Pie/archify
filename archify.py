@@ -42,7 +42,30 @@ class Log:
 
     @staticmethod
     def save_log_to_file(file_path):
-        with open(file_path, "w", encoding="utf-8") as log_file:
+        # Never follow a link, or write through a hard link, planted at the
+        # log's name.
+        fd = os.open(
+            file_path,
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_NOFOLLOW
+            | os.O_NONBLOCK
+            | os.O_CLOEXEC,
+            0o644,
+        )
+        try:
+            info = os.fstat(fd)
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                raise OSError(
+                    errno.EEXIST,
+                    "Refusing to overwrite an unexpected file",
+                    file_path,
+                )
+            os.ftruncate(fd, 0)
+        except BaseException:
+            os.close(fd)
+            raise
+        with os.fdopen(fd, "w", encoding="utf-8") as log_file:
             for log_message in Log.log_buffer:
                 log_file.write(log_message + "\n")
 
@@ -780,6 +803,107 @@ def thin_app_transactionally(app_path, target_arch, will_resign=False, compress=
     return [original for original, _ in prepared]
 
 
+RENAME_EXCL = 0x4
+ACL_TYPE_EXTENDED = 0x100
+ACL_FIRST_ENTRY = 0
+ACL_NEXT_ENTRY = -1
+ACL_EXTENDED_ALLOW = 1
+# Add file, delete, add subdirectory, delete child, write security, chown.
+ACL_CHANGE_PERMISSIONS = (
+    (1 << 2), (1 << 4), (1 << 5), (1 << 6), (1 << 12), (1 << 13)
+)
+
+
+def _acl_allows_others_to_change(path):
+    """Whether an ACL lets anyone add, remove or rename entries, or change
+    permissions or owner. Deny entries, such as the one on "/", are fine."""
+    libc = ctypes.CDLL("/usr/lib/libSystem.B.dylib", use_errno=True)
+    libc.acl_get_link_np.argtypes = [ctypes.c_char_p, ctypes.c_int]
+    libc.acl_get_link_np.restype = ctypes.c_void_p
+    libc.acl_get_entry.argtypes = [
+        ctypes.c_void_p, ctypes.c_int, ctypes.POINTER(ctypes.c_void_p)
+    ]
+    libc.acl_get_tag_type.argtypes = [
+        ctypes.c_void_p, ctypes.POINTER(ctypes.c_int)
+    ]
+    libc.acl_get_permset.argtypes = [
+        ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)
+    ]
+    libc.acl_get_perm_np.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    libc.acl_free.argtypes = [ctypes.c_void_p]
+
+    acl = libc.acl_get_link_np(os.fsencode(path), ACL_TYPE_EXTENDED)
+    if not acl:
+        # No ACL, or one that cannot be read.
+        return ctypes.get_errno() != errno.ENOENT
+    try:
+        entry = ctypes.c_void_p()
+        which = ACL_FIRST_ENTRY
+        while libc.acl_get_entry(acl, which, ctypes.byref(entry)) == 0:
+            which = ACL_NEXT_ENTRY
+            tag = ctypes.c_int()
+            if libc.acl_get_tag_type(entry, ctypes.byref(tag)) != 0:
+                return True
+            if tag.value != ACL_EXTENDED_ALLOW:
+                continue
+            permissions = ctypes.c_void_p()
+            if libc.acl_get_permset(entry, ctypes.byref(permissions)) != 0:
+                return True
+            if any(
+                libc.acl_get_perm_np(permissions, permission) == 1
+                for permission in ACL_CHANGE_PERMISSIONS
+            ):
+                return True
+        return False
+    finally:
+        libc.acl_free(acl)
+
+
+# wheel and admin: their members can already act as root, so a folder they
+# can change, such as /Applications, is no less safe.
+PRIVILEGED_GROUPS = (0, 80)
+
+
+def is_trusted_directory(path):
+    """Whether no one but this user and administrators can add, remove or
+    rename entries in ``path`` or any folder above it. Sticky folders such as
+    /tmp qualify, since others cannot rename what they don't own."""
+    path = Path(path)
+    if not path.is_absolute():
+        return False
+    user = os.geteuid()
+    current = Path("/")
+    for part in path.parts:
+        current = current / part
+        try:
+            # lstat: a link anywhere in the path is refused, not followed.
+            info = os.lstat(current)
+        except OSError:
+            return False
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid not in (0, user):
+            return False
+        if not info.st_mode & stat.S_ISVTX and (
+            info.st_mode & 0o002
+            or (info.st_mode & 0o020 and info.st_gid not in PRIVILEGED_GROUPS)
+        ):
+            return False
+        if _acl_allows_others_to_change(str(current)):
+            return False
+    return True
+
+
+def rename_exclusive(source, destination):
+    """Rename that fails with FileExistsError if ``destination`` exists."""
+    libc = ctypes.CDLL("/usr/lib/libSystem.B.dylib", use_errno=True)
+    libc.renamex_np.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint]
+    libc.renamex_np.restype = ctypes.c_int
+    if libc.renamex_np(
+        os.fsencode(source), os.fsencode(destination), RENAME_EXCL
+    ) != 0:
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error), str(destination))
+
+
 def duplicate_app(app_dir, output_dir):
     source = Path(app_dir).expanduser().resolve(strict=True)
     destination_root = (
@@ -806,9 +930,25 @@ def duplicate_app(app_dir, output_dir):
             f"{destination}"
         )
 
-    environment = os.environ.copy()
-    environment["DITTOABORT"] = "1"
+    # Copy into a private folder, then move the copy into place only if
+    # nothing exists there yet. A failed copy never touches, or cleans up,
+    # anything Archify did not create. That folder could be swapped out if
+    # other users can change the destination.
+    # Check one resolved folder, then use exactly that path from here on.
+    destination_root = Path(os.path.realpath(destination_root))
+    destination = destination_root / source.name
+    if not is_trusted_directory(destination_root):
+        raise RuntimeError(
+            "Choose an output folder that other users can't change: "
+            f"{destination_root}"
+        )
+    staging = Path(
+        tempfile.mkdtemp(prefix=".archify-copy-", dir=str(destination_root))
+    )
     try:
+        staged = staging / source.name
+        environment = os.environ.copy()
+        environment["DITTOABORT"] = "1"
         result = run_process(
             [
                 DITTO,
@@ -816,28 +956,31 @@ def duplicate_app(app_dir, output_dir):
                 "--extattr",
                 "--acl",
                 str(source),
-                str(destination),
+                str(staged),
             ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
             env=environment,
         )
-    except OSError:
-        shutil.rmtree(destination, ignore_errors=True)
-        raise
-
-    if result.returncode != 0:
-        shutil.rmtree(destination, ignore_errors=True)
-        detail = result.stderr.strip()
-        raise RuntimeError(
-            f"Failed to copy app: {detail or 'ditto failed'}"
-        )
-
-    if not destination.is_dir():
-        raise RuntimeError(
-            "Copy completed without a valid destination app bundle."
-        )
+        if result.returncode != 0:
+            detail = result.stderr.strip()
+            raise RuntimeError(
+                f"Failed to copy app: {detail or 'ditto failed'}"
+            )
+        if not staged.is_dir() or staged.is_symlink():
+            raise RuntimeError(
+                "Copy completed without a valid destination app bundle."
+            )
+        try:
+            rename_exclusive(staged, destination)
+        except FileExistsError:
+            raise RuntimeError(
+                "Destination already exists; refusing to merge into it: "
+                f"{destination}"
+            ) from None
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
 
     return str(destination)
 
@@ -1300,6 +1443,15 @@ def main():
     global LDID
     Log.log_buffer = []
     args = parse_arguments()
+
+    # archify.py only changes copies in a folder you choose, so it never
+    # needs root, and as root it could be redirected by other programs.
+    if os.geteuid() == 0:
+        Log.append(
+            "Run archify.py as your own user, not as root or with sudo. "
+            "It works on copies, so it doesn't need administrator rights."
+        )
+        return 1
     app_dirs = sorted(set(args.app_dir))
 
     try:
@@ -1317,6 +1469,16 @@ def main():
     if not os.path.isdir(output_dir):
         Log.append(
             f"Output path is not a directory: {output_dir}"
+        )
+        return 1
+
+    # Everything, including the log, is written beneath this folder, so no
+    # other user may be able to swap it, or a folder above it, out.
+    output_dir = os.path.realpath(output_dir)
+    if not is_trusted_directory(output_dir):
+        Log.append(
+            "Choose an output folder that other users can't change: "
+            f"{output_dir}"
         )
         return 1
 

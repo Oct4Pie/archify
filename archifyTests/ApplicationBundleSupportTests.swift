@@ -123,6 +123,70 @@ final class ApplicationCopierTests: XCTestCase {
                 atPath: outputURL.appendingPathComponent("Source.app").path
             )
         )
+        XCTAssertEqual(
+            try FileManager.default.contentsOfDirectory(atPath: outputURL.path),
+            []
+        )
+    }
+
+    func testRefusesDestinationsOtherUsersCanChange() throws {
+        let copier = ApplicationCopier()
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o777],
+            ofItemAtPath: outputURL.path
+        )
+        XCTAssertThrowsError(
+            try copier.copyApplication(from: sourceURL.path, toDirectory: outputURL.path)
+        )
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: outputURL.path), [])
+
+        // Sticky folders such as /tmp are fine: others cannot rename our entries.
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o1777],
+            ofItemAtPath: outputURL.path
+        )
+        XCTAssertNoThrow(
+            try copier.copyApplication(from: sourceURL.path, toDirectory: outputURL.path)
+        )
+    }
+
+    func testDestinationCreatedDuringCopyIsNeverMergedOrDeleted() throws {
+        let planted = outputURL.appendingPathComponent("Source.app", isDirectory: true)
+        for exitStatus in [0, 42] {
+            let fakeDitto = sandboxURL.appendingPathComponent("fake-ditto-\(exitStatus)")
+            let script = """
+            #!/bin/sh
+            for arg in "$@"; do dest="$arg"; done
+            mkdir -p "$dest" "\(planted.path)"
+            echo other > "\(planted.path)/other"
+            exit \(exitStatus)
+            """
+            try script.write(to: fakeDitto, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o755],
+                ofItemAtPath: fakeDitto.path
+            )
+
+            XCTAssertThrowsError(
+                try ApplicationCopier(dittoURL: fakeDitto).copyApplication(
+                    from: sourceURL.path,
+                    toDirectory: outputURL.path
+                )
+            )
+            XCTAssertEqual(
+                try Data(contentsOf: planted.appendingPathComponent("other")),
+                Data("other\n".utf8)
+            )
+            XCTAssertEqual(
+                try FileManager.default.contentsOfDirectory(atPath: planted.path),
+                ["other"]
+            )
+            XCTAssertEqual(
+                try FileManager.default.contentsOfDirectory(atPath: outputURL.path),
+                ["Source.app"]
+            )
+            try FileManager.default.removeItem(at: planted)
+        }
     }
 }
 

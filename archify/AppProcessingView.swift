@@ -542,8 +542,23 @@ struct AppProcessingView: View {
 
     private func replaceExistingCopy() {
         guard let destinationURL, !destinationIsOriginal else { return }
+        // Trash the copy only through a folder no other user can change, so
+        // the name cannot be redirected to someone else's app meanwhile.
+        guard let realFolder = realpath(appState.outputDir, nil) else { return }
+        let folder = String(cString: realFolder)
+        free(realFolder)
+        guard ApplicationThinner.isTrustedDirectory(folder) else {
+            alertMessage = "Choose a destination folder that other users can't change."
+            showAlert = true
+            return
+        }
+        let existingCopy = URL(fileURLWithPath: folder, isDirectory: true)
+            .appendingPathComponent(destinationURL.lastPathComponent, isDirectory: true)
+        guard canonicalPath(existingCopy.path) != canonicalPath(appState.inputDir) else {
+            return
+        }
         do {
-            try FileManager.default.trashItem(at: destinationURL, resultingItemURL: nil)
+            try FileManager.default.trashItem(at: existingCopy, resultingItemURL: nil)
             appState.outputName = nil
             appState.appendLog("Moved the existing \(destinationURL.lastPathComponent) to the Trash.")
         } catch {

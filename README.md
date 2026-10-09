@@ -65,7 +65,7 @@ Under **Advanced** in Optimize App:
 
 ## Command-line tool
 
-`archify.py` offers the same safe, transactional optimization from Terminal. It always works on a copy and never overwrites an existing app.
+`archify.py` offers the same safe, transactional optimization from Terminal. It always works on a copy and never overwrites an existing app. Run it as your own user; it refuses to run as root or with `sudo`, which it never needs. The output folder must be one that other users can't change, such as a folder in your home folder.
 
     python3 archify.py -app APP [APP ...] [-o OUTPUT_DIR] [-arch ARCH]
                        [-ld LDID] [-Ns] [-Ne] [-cs] [-l] [-Nc]

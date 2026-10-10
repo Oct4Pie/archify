@@ -29,17 +29,38 @@ class BatchProcessing: ObservableObject {
     /// The latest scan was canceled, so results cover only part of the apps.
     @Published private(set) var scanWasStopped = false
     @Published private(set) var isQuittingApps = false
+    /// Apps optimized before that have removable code again, usually
+    /// because they updated themselves.
+    @Published private(set) var updatedApps: [OptimizationHistory.Update] = []
     /// Pause/Resume and Cancel for the scan and for optimization runs.
     let control = RunControl()
     
     private let universalApps = UniversalApps()
     private let applicationDiscovery = ApplicationDiscovery()
     private let localApplicationThinner = ApplicationThinner()
+    private let history = OptimizationHistory()
     private var scanStartTime: Date?
+    private var lastScanDate: Date?
     private var processStartTime: Date?
     
+    /// Scans when Optimize Apps opens, but only for someone who has
+    /// optimized apps before, so updated ones are pointed out right away.
+    /// Coming back later rescans too, so apps that updated in the
+    /// meantime are found; a recent scan is reused.
+    func scanIfPreviouslyOptimized() {
+        guard !isScanning, !isProcessing, !isQuittingApps, !scanWasStopped,
+              !history.isEmpty
+        else {
+            return
+        }
+        if let lastScanDate, Date().timeIntervalSince(lastScanDate) < 10 * 60 {
+            return
+        }
+        startCalculatingSizes()
+    }
+
     func startCalculatingSizes() {
-        guard !isScanning, !isProcessing else { return }
+        guard !isScanning, !isProcessing, !isQuittingApps else { return }
         isScanning = true
         scanWasStopped = false
         control.begin()
@@ -62,10 +83,16 @@ class BatchProcessing: ObservableObject {
                     }
                 }
             ) { sortedAppSizes in
+                // Reads each app's Info.plist, so keep it off the main thread.
+                let updatedApps = self.history.updates(
+                    among: sortedAppSizes.map(\.path)
+                )
                 DispatchQueue.main.async {
                     self.appSizes = sortedAppSizes.map {
                         ($0.path, $0.totalSize, $0.savableSize)
                     }
+                    self.updatedApps = updatedApps
+                    self.lastScanDate = Date()
                     self.scanWasStopped = self.control.isCanceled
                     self.control.finish()
                     self.isScanning = false
@@ -277,6 +304,8 @@ class BatchProcessing: ObservableObject {
                 appSizes.remove(at: appIndex)
             }
             selectedApps.remove(app)
+            history.record(app)
+            updatedApps.removeAll { $0.path == app }
         } else {
             let reason = errorString ?? "Unknown error"
             failedApps.append((app, reason))
@@ -342,6 +371,10 @@ class BatchProcessing: ObservableObject {
     
     func deselectAllApps() {
         selectedApps.removeAll()
+    }
+
+    func selectUpdatedApps() {
+        selectedApps = Set(updatedApps.map(\.path))
     }
     
     private func systemArchitecture() -> String {

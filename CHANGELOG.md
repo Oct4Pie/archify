@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.1
+
+- Optimize Apps points out apps that have updated themselves since you optimized them, which usually puts back the code for other Macs, and optimizes them again in one step. It scans on opening once you have optimized apps. Apps optimized with 1.5.0 are recognized after their next optimization.
+- The window opens where you left it, at the size you left it (#16).
+- The command-line tool has a dry run, `-n` or `--dry_run`, that lists the binaries it would thin and the space that would free, without copying or changing anything (#2).
+
 ## 1.5.0
 
 ### Security

@@ -638,42 +638,26 @@ class SealedResourceIndex:
         return os.path.join(directory, "_CodeSignature", "CodeResources")
 
 
-def thin_app_transactionally(app_path, target_arch, will_resign=False, compress=True):
-    """Thin every universal binary in the app.
+def signature_requirements(app, will_resign):
+    """Whether the app's signature must stay valid, and whether deeply.
 
-    Unless the caller re-signs the whole app afterwards (``will_resign``),
-    binaries sealed as resources are skipped in signed apps and the result
-    is rolled back if the existing signature no longer verifies. Thinned
-    binaries are stored compressed unless ``compress`` is false.
+    Returns ``(required, deep)``. Nothing is required when the caller
+    re-signs the whole app afterwards.
     """
-    app = Path(app_path).expanduser().resolve(strict=True)
-    transaction_directory = Path(
-        tempfile.mkdtemp(
-            prefix=".archify-transaction-",
-            dir=str(app.parent),
-        )
-    )
-    transaction_directory.chmod(0o700)
-
     if will_resign:
-        require_deep_signature_validation = False
-        require_signature_validation = False
-    else:
-        require_deep_signature_validation = has_valid_code_signature(
-            str(app),
-            deep=True,
-        )
-        require_signature_validation = (
-            require_deep_signature_validation
-            or has_valid_code_signature(str(app))
-        )
+        return False, False
+    deep = has_valid_code_signature(str(app), deep=True)
+    return deep or has_valid_code_signature(str(app)), deep
+
+
+def plan_thinning(app, target_arch, keep_signature_valid):
+    """The universal binaries thinning would change, as sorted
+    ``(path, architecture to keep)`` pairs. Binaries sealed as resources
+    are left out when the signature must stay valid."""
     sealed_resources = (
-        SealedResourceIndex(app) if require_signature_validation else None
+        SealedResourceIndex(app) if keep_signature_valid else None
     )
     planned = []
-
-    # Snapshot candidates before creating staging files so we never discover
-    # Archify's own temporary output during the same traversal.
     for root, directories, files in os.walk(
         str(app),
         followlinks=False,
@@ -696,6 +680,63 @@ def thin_app_transactionally(app_path, target_arch, will_resign=False, compress=
                 planned.append((file_path, architecture))
 
     planned.sort(key=lambda item: item[0])
+    return planned
+
+
+def dry_run(app_path, target_arch, will_resign):
+    """Report what thinning a copy of the app would change, without
+    copying or changing anything. Returns the bytes it would remove."""
+    app = Path(app_path).expanduser().resolve(strict=True)
+    if app.suffix.lower() != ".app" or not app.is_dir():
+        raise RuntimeError(f"Input is not an application bundle: {app}")
+    required, _ = signature_requirements(app, will_resign)
+    removable_total = 0
+    Log.append(f"\n{app.name}")
+    for file_path, architecture in plan_thinning(app, target_arch, required):
+        slices = get_mach_slices(file_path) or []
+        removable = sum(
+            size for name, size in slices if name != architecture
+        )
+        removable_total += removable
+        Log.append(
+            f"  {os.path.relpath(file_path, app)}: keep {architecture}, "
+            f"remove {', '.join(n for n, _ in slices if n != architecture)} "
+            f"({human_readable_size(removable)})"
+        )
+    if removable_total:
+        Log.append(
+            f"  Would remove about {human_readable_size(removable_total)} "
+            "before compression."
+        )
+    else:
+        Log.append("  Nothing to remove.")
+    return removable_total
+
+
+def thin_app_transactionally(app_path, target_arch, will_resign=False, compress=True):
+    """Thin every universal binary in the app.
+
+    Unless the caller re-signs the whole app afterwards (``will_resign``),
+    binaries sealed as resources are skipped in signed apps and the result
+    is rolled back if the existing signature no longer verifies. Thinned
+    binaries are stored compressed unless ``compress`` is false.
+    """
+    app = Path(app_path).expanduser().resolve(strict=True)
+    transaction_directory = Path(
+        tempfile.mkdtemp(
+            prefix=".archify-transaction-",
+            dir=str(app.parent),
+        )
+    )
+    transaction_directory.chmod(0o700)
+
+    (
+        require_signature_validation,
+        require_deep_signature_validation,
+    ) = signature_requirements(app, will_resign)
+    # Snapshot candidates before creating staging files so we never discover
+    # Archify's own temporary output during the same traversal.
+    planned = plan_thinning(app, target_arch, require_signature_validation)
     prepared = []
     try:
         for file_path, architecture in planned:
@@ -1427,6 +1468,16 @@ def parse_arguments():
         action="store_true",
     )
     parser.add_argument(
+        "-n",
+        "--dry_run",
+        default=False,
+        help=(
+            "Only report which binaries would be thinned and how much "
+            "space that would free; nothing is copied or changed"
+        ),
+        action="store_true",
+    )
+    parser.add_argument(
         "-Nc",
         "--no_compress",
         default=False,
@@ -1453,6 +1504,26 @@ def main():
         )
         return 1
     app_dirs = sorted(set(args.app_dir))
+
+    if args.dry_run:
+        exit_status = 0
+        total = 0
+        for app_dir in app_dirs:
+            try:
+                total += dry_run(app_dir, args.arch, args.codesign)
+            except OSError as error:
+                Log.append(f"App is not accessible: {app_dir}: {error}")
+                exit_status = 1
+            except RuntimeError as error:
+                Log.append(str(error))
+                exit_status = 1
+        if len(app_dirs) > 1:
+            Log.append(
+                f"\nTotal: about {human_readable_size(total)} "
+                "before compression."
+            )
+        Log.append("Dry run: nothing was copied or changed.")
+        return exit_status
 
     try:
         output_dir = str(

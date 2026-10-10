@@ -28,7 +28,7 @@ Releases are signed with a Developer ID and notarized by Apple. From 1.5 on, Arc
 ## Features
 
 - **Optimize App** — creates a smaller copy of one app in a folder you choose. The original is never changed. If an app with the same name already exists there, you can keep both or replace the old one (it goes to the Trash).
-- **Optimize Apps** — scans /Applications and ~/Applications, shows how much each app can save, and optimizes the apps you select in place.
+- **Optimize Apps** — scans /Applications and ~/Applications, shows how much each app can save, and optimizes the apps you select in place. Apps that have updated themselves since you optimized them, putting back code for other Macs, are marked so you can optimize them again in one step.
 - **Space Savings** — estimates how much space selected apps would free, without changing anything.
 - **Languages** — removes language files for languages you don't use. Your preferred languages, each app's development language, and any language an app's signature depends on are always kept.
 - **Installed Apps** — browse your apps by architecture: universal, Apple Silicon, Intel, or other.
@@ -80,6 +80,7 @@ Under **Advanced** in Optimize App:
 | `-Ne`, `--no_entitlements` | Don't reuse entitlements when signing |
 | `-cs`, `--codesign` | Ad-hoc sign the copy with `codesign` |
 | `-l`, `--no_launch` | Don't launch the copy before optimizing |
+| `-n`, `--dry_run` | Only list the binaries that would be thinned and the space it would free; nothing is copied or changed |
 | `-Nc`, `--no_compress` | Don't compress the thinned binaries |
 
 Example:
@@ -89,7 +90,7 @@ Example:
 ## Known limitations
 
 - Some apps check their own files for changes, use copy protection, or ship their own updaters, and may object to an optimized copy even though macOS accepts its signature. Optimize a copy first if you are unsure.
-- A self-updating app may restore the removed architecture or languages when it updates.
+- A self-updating app may restore the removed architecture or languages when it updates. Optimize Apps points out these apps so you can optimize them again.
 
 ## Building from source
 

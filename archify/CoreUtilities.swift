@@ -542,6 +542,108 @@ enum StorageUtilities {
     }
 }
 
+/// Apps that Optimize Apps changed in place, so that an app that has since
+/// updated itself, and with that put back the code for other Macs, can be
+/// pointed out. Stored only on this Mac, in Archify's preferences.
+struct OptimizationHistory {
+    struct Update: Equatable {
+        let path: String
+        let previousVersion: String?
+        let currentVersion: String?
+    }
+
+    private static let key = "OptimizedApps"
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
+
+    func record(_ appPath: String) {
+        guard let bundleID = Self.bundleID(of: appPath) else { return }
+        var records = storedRecords()
+        records[appPath] = [
+            "bundleID": bundleID,
+            "version": Self.version(of: appPath) ?? ""
+        ]
+        defaults.set(records, forKey: Self.key)
+    }
+
+    /// Previously optimized apps among `scannedPaths`, the apps that have
+    /// removable code again. An app replaced by a different one at the same
+    /// path is not included. Records of apps that are gone are dropped.
+    func updates(among scannedPaths: [String]) -> [Update] {
+        var records = storedRecords()
+        let missing = records.keys.filter {
+            !FileManager.default.fileExists(atPath: $0)
+        }
+        if !missing.isEmpty {
+            missing.forEach { records.removeValue(forKey: $0) }
+            defaults.set(records, forKey: Self.key)
+        }
+
+        return scannedPaths.compactMap { path in
+            guard let record = records[path],
+                  record["bundleID"] == Self.bundleID(of: path)
+            else {
+                return nil
+            }
+            let previous = record["version"].flatMap { $0.isEmpty ? nil : $0 }
+            return Update(
+                path: path,
+                previousVersion: previous,
+                currentVersion: Self.version(of: path)
+            )
+        }
+    }
+
+    var isEmpty: Bool {
+        storedRecords().isEmpty
+    }
+
+    private func storedRecords() -> [String: [String: String]] {
+        defaults.dictionary(forKey: Self.key) as? [String: [String: String]] ?? [:]
+    }
+
+    private static func infoValue(_ key: String, of appPath: String) -> String? {
+        let path = (appPath as NSString)
+            .appendingPathComponent("Contents/Info.plist")
+        // Apps can be changed by others: read only a regular file of
+        // reasonable size, and never wait on a FIFO in its place.
+        let fd = path.withCString {
+            Darwin.open($0, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
+        }
+        guard fd >= 0 else { return nil }
+        let handle = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
+        defer { try? handle.close() }
+        var info = stat()
+        guard fstat(fd, &info) == 0,
+              (info.st_mode & mode_t(S_IFMT)) == mode_t(S_IFREG),
+              info.st_size <= 4 * 1024 * 1024
+        else {
+            return nil
+        }
+        guard let data = try? handle.readToEnd(),
+              let plist = try? PropertyListSerialization.propertyList(
+                from: data,
+                format: nil
+              ) as? [String: Any]
+        else {
+            return nil
+        }
+        return plist[key] as? String
+    }
+
+    private static func bundleID(of appPath: String) -> String? {
+        infoValue("CFBundleIdentifier", of: appPath)
+    }
+
+    private static func version(of appPath: String) -> String? {
+        infoValue("CFBundleShortVersionString", of: appPath)
+            ?? infoValue("CFBundleVersion", of: appPath)
+    }
+}
+
 /// Pause, resume, and cancel for long-running work. Every change Archify
 /// makes to an app is all-or-nothing, so pausing and canceling take effect
 /// between items: the item in progress always finishes.

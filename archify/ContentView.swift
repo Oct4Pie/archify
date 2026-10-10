@@ -73,13 +73,23 @@ struct ContentView: View {
     private func configureWindow() {
         guard let window = NSApplication.shared.windows.first else { return }
 
-        let autosaveName = NSWindow.FrameAutosaveName("ArchifyMainWindow")
-        if !window.setFrameUsingName(autosaveName) {
+        window.minSize = NSSize(width: 900, height: 640)
+
+        // SwiftUI already saves and restores the window's frame under its own
+        // autosave name. Only size and center the window on first launch, so
+        // the position the user left it at is kept.
+        var autosaveName = window.frameAutosaveName
+        if autosaveName.isEmpty {
+            autosaveName = "ArchifyMainWindow"
+            _ = window.setFrameAutosaveName(autosaveName)
+        }
+        let savedFrame = UserDefaults.standard.string(
+            forKey: "NSWindow Frame \(autosaveName)"
+        )
+        if savedFrame == nil || !window.setFrameUsingName(autosaveName) {
             window.setContentSize(NSSize(width: 1080, height: 760))
             window.center()
         }
-        window.minSize = NSSize(width: 900, height: 640)
-        _ = window.setFrameAutosaveName(autosaveName)
     }
 
     private var sidebar: some View {

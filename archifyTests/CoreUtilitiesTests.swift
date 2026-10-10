@@ -515,3 +515,88 @@ final class RunControlTests: XCTestCase {
         XCTAssertEqual(control.state, .idle)
     }
 }
+
+final class OptimizationHistoryTests: XCTestCase {
+    private var sandboxURL: URL!
+    private var defaults: UserDefaults!
+    private var suiteName: String!
+
+    override func setUpWithError() throws {
+        sandboxURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("archify-history-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: sandboxURL, withIntermediateDirectories: true)
+        suiteName = "archify-history-tests-\(UUID().uuidString)"
+        defaults = UserDefaults(suiteName: suiteName)
+    }
+
+    override func tearDownWithError() throws {
+        defaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: sandboxURL)
+    }
+
+    private func makeApp(_ name: String, bundleID: String, version: String) throws -> String {
+        let contents = sandboxURL.appendingPathComponent("\(name).app/Contents", isDirectory: true)
+        try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+        try PropertyListSerialization.data(
+            fromPropertyList: [
+                "CFBundleIdentifier": bundleID,
+                "CFBundleShortVersionString": version
+            ],
+            format: .xml,
+            options: 0
+        ).write(to: contents.appendingPathComponent("Info.plist"))
+        return contents.deletingLastPathComponent().path
+    }
+
+    func testOnlyPreviouslyOptimizedAppsAreReportedWithTheirVersions() throws {
+        let history = OptimizationHistory(defaults: defaults)
+        XCTAssertTrue(history.isEmpty)
+
+        let optimized = try makeApp("Optimized", bundleID: "com.example.optimized", version: "1.2")
+        let other = try makeApp("Other", bundleID: "com.example.other", version: "3.0")
+        history.record(optimized)
+        XCTAssertFalse(history.isEmpty)
+
+        // The app updates itself.
+        _ = try makeApp("Optimized", bundleID: "com.example.optimized", version: "1.3")
+
+        XCTAssertEqual(
+            history.updates(among: [optimized, other]),
+            [.init(path: optimized, previousVersion: "1.2", currentVersion: "1.3")]
+        )
+        // Not in the scan means it has nothing to remove: not reported.
+        XCTAssertEqual(history.updates(among: [other]), [])
+    }
+
+    func testDifferentAppAtTheSamePathIsNotReported() throws {
+        let history = OptimizationHistory(defaults: defaults)
+        let path = try makeApp("Example", bundleID: "com.example.first", version: "1.0")
+        history.record(path)
+
+        _ = try makeApp("Example", bundleID: "com.example.second", version: "1.0")
+
+        XCTAssertEqual(history.updates(among: [path]), [])
+    }
+
+    func testInfoPlistReplacedByAFIFODoesNotBlock() throws {
+        let history = OptimizationHistory(defaults: defaults)
+        let path = try makeApp("Swapped", bundleID: "com.example.swapped", version: "1.0")
+        history.record(path)
+        let plist = URL(fileURLWithPath: path).appendingPathComponent("Contents/Info.plist")
+        try FileManager.default.removeItem(at: plist)
+        XCTAssertEqual(mkfifo(plist.path, 0o600), 0)
+
+        // With no writer, a blocking read of the FIFO would never return.
+        XCTAssertEqual(history.updates(among: [path]), [])
+    }
+
+    func testRecordsOfRemovedAppsAreDropped() throws {
+        let history = OptimizationHistory(defaults: defaults)
+        let path = try makeApp("Removed", bundleID: "com.example.removed", version: "1.0")
+        history.record(path)
+        try FileManager.default.removeItem(atPath: path)
+
+        XCTAssertEqual(history.updates(among: []), [])
+        XCTAssertTrue(history.isEmpty)
+    }
+}

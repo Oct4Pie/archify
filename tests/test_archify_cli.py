@@ -341,7 +341,8 @@ class ArchifyCLITests(unittest.TestCase):
         with mock.patch.object(archify, "parse_arguments") as parse, \
                 mock.patch.object(archify, "duplicate_app") as duplicate:
             parse.return_value = mock.Mock(
-                app_dir=[str(self.make_app())], output_dir=str(output)
+                app_dir=[str(self.make_app())], output_dir=str(output),
+                dry_run=False,
             )
             self.assertEqual(archify.main(), 1)
             duplicate.assert_not_called()
@@ -352,10 +353,55 @@ class ArchifyCLITests(unittest.TestCase):
                 mock.patch.object(archify, "parse_arguments") as parse, \
                 mock.patch.object(archify, "duplicate_app") as duplicate:
             parse.return_value = mock.Mock(
-                app_dir=[str(self.make_app())], output_dir=str(self.root)
+                app_dir=[str(self.make_app())], output_dir=str(self.root),
+                dry_run=False,
             )
             self.assertEqual(archify.main(), 1)
             duplicate.assert_not_called()
+
+    def test_dry_run_reports_savings_without_changing_anything(self):
+        app = self.make_app()
+        runner = app / "Contents" / "MacOS" / "Runner"
+        shutil.copyfile("/usr/bin/true", runner)
+        runner.chmod(0o755)
+        output = self.root / "Output"
+        output.mkdir()
+        before = hashlib.sha256(runner.read_bytes()).hexdigest()
+
+        target = archify.machine_architecture()
+        slices = archify.get_mach_slices(str(runner))
+        kept = archify.preferred_architecture([n for n, _ in slices], target)
+        expected = sum(size for name, size in slices if name != kept)
+
+        archify.Log.log_buffer = []
+        with mock.patch.object(archify, "parse_arguments") as parse:
+            parse.return_value = mock.Mock(
+                app_dir=[str(app)], output_dir=str(output), arch=target,
+                codesign=False, dry_run=True,
+            )
+            self.assertEqual(archify.main(), 0)
+
+        self.assertEqual(archify.dry_run(str(app), target, False), expected)
+        self.assertEqual(hashlib.sha256(runner.read_bytes()).hexdigest(), before)
+        self.assertEqual(list(output.iterdir()), [])
+        log = "\n".join(archify.Log.log_buffer)
+        self.assertIn(f"Contents/MacOS/Runner: keep {kept}", log)
+        self.assertIn("nothing was copied or changed", log)
+        archify.Log.log_buffer = []
+
+        # Inputs a real run would refuse are reported, not estimated.
+        not_an_app = self.root / "notes.txt"
+        not_an_app.write_text("x", encoding="utf-8")
+        for bad in (not_an_app, self.root / "Output"):
+            with self.assertRaises(RuntimeError):
+                archify.dry_run(str(bad), target, False)
+        with mock.patch.object(archify, "parse_arguments") as parse:
+            parse.return_value = mock.Mock(
+                app_dir=[str(not_an_app)], output_dir=str(output), arch=target,
+                codesign=False, dry_run=True,
+            )
+            self.assertEqual(archify.main(), 1)
+        archify.Log.log_buffer = []
 
     def test_transactional_thinning_preserves_signature(self):
         app = self.make_app()

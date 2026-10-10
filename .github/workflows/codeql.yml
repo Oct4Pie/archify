@@ -1,0 +1,75 @@
+name: CodeQL
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '27 6 * * 1'
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+            runner: ubuntu-latest
+          - language: python
+            build-mode: none
+            runner: ubuntu-latest
+          - language: swift
+            build-mode: manual
+            runner: macos-26
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Fetch Swift packages
+        if: matrix.language == 'swift'
+        run: xcodebuild -project archify.xcodeproj -resolvePackageDependencies
+
+      - uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      - name: Build app and helper
+        if: matrix.language == 'swift'
+        # The CodeQL tracer runs xcodebuild under Rosetta, so the build
+        # targets a generic Mac rather than the runner's own architecture.
+        run: |
+          set -euo pipefail
+          for scheme in archify com.oct4pie.archifyhelper; do
+            xcodebuild \
+              -project archify.xcodeproj \
+              -scheme "$scheme" \
+              -configuration Debug \
+              -destination 'generic/platform=macOS' \
+              ARCHS=arm64 \
+              ONLY_ACTIVE_ARCH=NO \
+              MACOSX_DEPLOYMENT_TARGET=12.0 \
+              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_REQUIRED=NO \
+              DEVELOPMENT_TEAM= \
+              build
+          done
+
+      - uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          category: /language:${{ matrix.language }}

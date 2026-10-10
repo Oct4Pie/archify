@@ -87,6 +87,9 @@ struct BatchProcessingView: View {
                 }
             }
         }
+        .onAppear {
+            batchProcessing.scanIfPreviouslyOptimized()
+        }
         .confirmationDialog(
             openApps.isEmpty
                 ? "Optimize selected apps?"
@@ -167,6 +170,10 @@ struct BatchProcessingView: View {
             systemImage: "checklist"
         ) {
             VStack(spacing: 12) {
+                if !batchProcessing.updatedApps.isEmpty {
+                    updatedAppsNotice
+                }
+
                 HStack(spacing: 8) {
                     ArchifySearchField(
                         placeholder: "Search apps",
@@ -210,6 +217,7 @@ struct BatchProcessingView: View {
                                 app: app,
                                 totalSize: totalSize,
                                 savableSize: savableSize,
+                                update: batchProcessing.updatedApps.first { $0.path == app },
                                 isSelected: batchProcessing.selectedApps.contains(app)
                             ) {
                                 if batchProcessing.selectedApps.contains(app) {
@@ -224,6 +232,32 @@ struct BatchProcessingView: View {
                     .frame(minHeight: 260, maxHeight: 420)
                 }
             }
+        }
+    }
+
+    private var updatedAppsNotice: some View {
+        let count = batchProcessing.updatedApps.count
+        return HStack(alignment: .center, spacing: 12) {
+            ArchifyNotice(
+                title: count == 1
+                    ? "1 app updated since you optimized it"
+                    : "\(count) apps updated since you optimized them",
+                message: "Updates can put back the code for other Macs. "
+                    + "Optimizing again removes it, the same way as before.",
+                kind: .info
+            )
+
+            Button("Optimize Again…") {
+                batchProcessing.selectUpdatedApps()
+                openApps = batchProcessing.runningSelectedApps()
+                showProcessingConfirmation = true
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(
+                batchProcessing.isProcessing
+                    || batchProcessing.isScanning
+                    || batchProcessing.isQuittingApps
+            )
         }
     }
 
@@ -485,6 +519,7 @@ private struct BatchAppRow: View {
     let app: String
     let totalSize: UInt64
     let savableSize: UInt64
+    var update: OptimizationHistory.Update?
     let isSelected: Bool
     let action: () -> Void
 
@@ -496,8 +531,20 @@ private struct BatchAppRow: View {
                     .font(.title3)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text((app as NSString).lastPathComponent)
-                        .font(.subheadline.weight(.medium))
+                    HStack(spacing: 6) {
+                        Text((app as NSString).lastPathComponent)
+                            .font(.subheadline.weight(.medium))
+                        if let update {
+                            Text(Self.updateLabel(update))
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(Color.accentColor)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 1)
+                                .background(
+                                    Capsule().fill(Color.accentColor.opacity(0.12))
+                                )
+                        }
+                    }
                     Text(app)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -524,8 +571,21 @@ private struct BatchAppRow: View {
         .accessibilityLabel(
             "\(isSelected ? "Selected" : "Not selected"), "
                 + "\((app as NSString).lastPathComponent), "
+                + (update.map { "\(Self.updateLabel($0)), " } ?? "")
                 + "\(savableSize.humanReadableSize()) potential savings"
         )
+    }
+
+    /// "Updated 1.2 → 1.3", or just "Updated" when the version is unknown
+    /// or unchanged.
+    static func updateLabel(_ update: OptimizationHistory.Update) -> String {
+        guard let previous = update.previousVersion,
+              let current = update.currentVersion,
+              previous != current
+        else {
+            return "Updated since optimizing"
+        }
+        return "Updated \(previous) → \(current)"
     }
 }
 

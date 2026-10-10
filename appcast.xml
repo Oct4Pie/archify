@@ -9,6 +9,15 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         <description>Stable Archify updates</description>
         <language>en</language>
         <item>
+            <title>1.5.1</title>
+            <pubDate>Fri, 09 Oct 2026 19:12:26 -0700</pubDate>
+            <link>https://github.com/Oct4Pie/archify/releases/tag/v1.5.1</link>
+            <sparkle:version>13</sparkle:version>
+            <sparkle:shortVersionString>1.5.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>12.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/Oct4Pie/archify/releases/download/v1.5.1/Archify-1.5.1.zip" length="4077220" type="application/octet-stream" sparkle:edSignature="njAAzLIKuMcbJbBbLJmy9psIHA+AOKkwWe6pkFhiRgjH1e1tiefSBx2M2qq9R8Ep6H2BGxvRG7OFdG57p/ZQCA=="/>
+        </item>
+        <item>
             <title>1.5.0</title>
             <pubDate>Fri, 09 Oct 2026 05:34:30 -0700</pubDate>
             <link>https://github.com/Oct4Pie/archify/releases/tag/v1.5.0</link>
@@ -20,6 +29,6 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: 7N6zns74Pxo+WgM/yWupCldGXsB7NHTFfmorKnq1oepZ+P2IAVSSErmFFr7aJKoITd469Q4mtVjL8viqJsIDCA==
-length: 1290
+edSignature: TWRvEBKPjMhhrlGTGjzMxwzpI5OAbdnc1PQiZlN4feg3Oz38Lryn+cBcXr3kRxMLJTeJsXxEEDxAdLX3rFN9Dw==
+length: 1969
 -->
